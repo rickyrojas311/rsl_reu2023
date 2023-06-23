@@ -47,15 +47,16 @@ def min_gradient_descent(matrix_a, vector_d, stepsize=0, max_iterations=1000):
     """
     #Starts from 0
     vector_x = np.zeros(matrix_a.shape[1])
-    delta_f = get_delta_f(matrix_a, vector_x, vector_d)
+    old_x = np.ones(matrix_a.shape[1])
     if stepsize == 0:
         stepsize = optimal_stepsize(matrix_a)
     num_iterations = 0
-    while num_iterations < max_iterations:
-        vector_x -= stepsize * delta_f
+    while num_iterations < max_iterations and not np.allclose(vector_x, old_x, rtol=1e-10, atol=1e-10):
+        old_x = vector_x.copy()
         delta_f = get_delta_f(matrix_a, vector_x, vector_d)
+        vector_x -= stepsize * delta_f
         num_iterations += 1
-        # print(vector_x, delta_f, stepsize)
+        print(vector_x, old_x, delta_f, stepsize, num_iterations)
     return vector_x
 
 
@@ -76,7 +77,7 @@ def test_simple_matrix():
     return min_gradient_descent(A, d)
 
 if __name__ == '__main__':
-    # np.random.seed(1)
+    np.random.seed(1)
 
     A = np.random.rand(3,2)
     d = np.random.rand(3)
