@@ -15,28 +15,28 @@ def optimal_stepsize(matrix_a):
     """
     Uses the lipshitz constant to find the optimal stepsize for matrix A
     """
-    return 1/np.linalg.norm(matrix_a)
-    # return 1/power_iteration(matrix_a, 1000)
+    # return 1/np.linalg.norm(matrix_a)
+    return 1/power_iteration(matrix_a, 1000)
 
 
-# def power_iteration(matrix_A, num_iterations: int):
-#     """
-#     Uses power_iteration formula to find the norm of Matrix A
-#     """
-#     A = matrix_A.T @ matrix_A
-#     b_k = np.random.rand(A.shape[1])
+def power_iteration(matrix_A, num_iterations: int):
+    """
+    Uses power_iteration formula to find the norm of Matrix A
+    """
+    A = matrix_A.T @ matrix_A
+    b_k = np.random.rand(A.shape[1])
 
-#     for _ in range(num_iterations):
-#         # calculate the matrix-by-vector product Ab
-#         b_k1 = A @ b_k
+    for _ in range(num_iterations):
+        # calculate the matrix-by-vector product Ab
+        b_k1 = A @ b_k
 
-#         # calculate the norm
-#         b_k1_norm = np.linalg.norm(b_k1)
+        # calculate the norm
+        b_k1_norm = np.linalg.norm(b_k1)
 
-#         # re normalize the vector
-#         b_k = b_k1 / b_k1_norm
+        # re normalize the vector
+        b_k = b_k1 / b_k1_norm
 
-#     return np.sqrt(b_k)
+    return b_k1_norm
 
 
 def min_gradient_descent(matrix_a, vector_d, stepsize=0, max_iterations=1000):
@@ -79,10 +79,10 @@ def test_simple_matrix():
 if __name__ == '__main__':
     np.random.seed(1)
 
-    A = np.random.rand(3,2)
-    d = np.random.rand(3)
+    # A = np.random.rand(3,2)
+    # d = np.random.rand(3)
 
-    #A = np.array([[1,0],[3,2],[4,5]])
-    #d = np.array([1,0,3])
+    A = np.array([[1,0],[3,2],[4,5]])
+    d = np.array([1,0,3])
 
     min_gradient_descent(A, d, max_iterations=1000)
