@@ -6,22 +6,35 @@ as well as verfiy that it is actually A^T
 import numpy as np
 import sigpy as sp
 
-def is_tranpose(A, A_transpose):
+# class myDownsample(sp.linop.Downsample):
+#     def __init__(self, ishape, factors, shift=None):
+#         super().__init__(ishape, factors, shift)
+    
+#     #add functions
+
+
+
+
+def is_tranpose(ishape, factor):
     """
-    Checks properties of the transpose of A to verify A.H is the transpose\
+    Checks properties of the transpose of A to verify A.H is the transpose
     of A
     """
-    B = np.random.rand(A[0], A[1])
-    k = np.random.rand(A[0])
-    if A_transpose.H == A and (A + B).H == (A_transpose + B.H)\
-    and (k @ A).H == k @ A_transpose and (A @ B).H == (A_transpose @ B.H):
-        return True
-    return False
+    vectorA_size = np.prod(ishape)
+    A = sp.linop.Downsample((vectorA_size,), factor)
+    A_transpose = A.H
+    x = np.random.rand(*ishape).flatten()
+    A_x = A * x
+    y = np.random.rand(A_x.size)
+    return np.dot(A_x, y) == np.dot(x, A_transpose * y)
+
 
 if __name__ == "__main__":
-    np.random.seed(1)
-    print(high_res := np.random.rand(6, 1))
-    A = sp.linop.Downsample((6, 1), (2,1))
-    print(low_res := A * high_res)
-    print(upscale_res := A.H * low_res)
-    # print(is_tranpose(A, A.H))
+    np.random.seed(100)
+    ishape = (2, 2, 2)
+    factor = (2, 1)
+    print(high_res := np.random.rand(*ishape))
+    print(A := sp.linop.Downsample(ishape, factor))
+    print(low_res := A.apply(high_res))
+    # print(upscale_res := A.H * low_res)
+    # print(is_tranpose(ishape, factor))
