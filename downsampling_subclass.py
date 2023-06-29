@@ -6,7 +6,7 @@ import sigpy as sp
 from sigpy import backend
 import numpy as np
 
-class AverageDownsampling(sp.linop.Downsample):
+class AverageDownsampling(sp.linop.Linop):
     """Downsampling linear operator.
 
     Args:
@@ -15,22 +15,17 @@ class AverageDownsampling(sp.linop.Downsample):
         shift (None of tuple of ints): Shifts before down-sampling.
     """
 
-    def __init__(self, ishape, factors, shift=None):
+    def __init__(self, ishape: tuple[int], factors: tuple[int], shift=None):
         self.factors = factors
-        super().__init__(ishape, factors, shift)
-    # def __init__(self, ishape, factors, shift=None):
-    #     self.factors = factors
 
-    #     if shift is None:
-    #         shift = [0] * len(ishape)
+        if shift is None:
+            shift = [0] * len(ishape)
 
-    #     self.shift = shift
-    #     oshape = [
-    #         ((i - s + f - 1) // f) for i, f, s in zip(ishape, factors, shift)
-    #     ]
-
-    #     super().__init__(oshape, ishape)
-
+        self.shift = shift
+        oshape = [
+            ((i - s + f - 1) // f) for i, f, s in zip(ishape, factors, shift)
+        ]
+        super().__init__(oshape, ishape)
 
     def _apply(self, input):
         device = backend.get_device(input)
@@ -38,11 +33,11 @@ class AverageDownsampling(sp.linop.Downsample):
             return downsample_average(input, self.factors)
 
     def _adjoint_linop(self):
-        return sp.linop.Upsample(self.ishape, self.factors, shift=self.shift)
+        return AverageUpsampling(self.ishape, self.factors, shift=self.shift)
     
 
 
-def downsample_average(target_array, factor):
+def downsample_average(iarray, factor: tuple[int]):
     """
     Downsamples inputed target array by the inputed factor tuple by 
     averaging consecutive values together.
@@ -53,27 +48,63 @@ def downsample_average(target_array, factor):
     @parameter
     factor downsamples by given factor in direction given in the tuple
     """
-    for i in range(target_array.ndim):
-        arrays = []
-        if i < len(factor):
-            downsampling_rate = factor[i]
+    for dim in range(iarray.ndim):
+        if dim < len(factor):
+            downsampling_factor = factor[dim]
         else:
-            #A rate of one doesn't alter the matrix in that direction
-            downsampling_rate = 1
-        bucket_size = np.ceil(target_array.shape[i]/downsampling_rate)
-        split_array = np.array_split(target_array, bucket_size, axis=i)
+            downsampling_factor = 1
+        arrays = []
+        bucket_size = np.ceil(iarray.shape[dim]/downsampling_factor)
+        split_array = np.array_split(iarray, bucket_size, axis=dim)
         for array in split_array:
-            arrays.append(np.mean(array, axis=i))
-        target_array = np.stack(arrays, axis=i)
-    return target_array
+            arrays.append(np.mean(array, axis=dim))
+        iarray = np.stack(arrays, axis=dim)
+    return iarray
 
-def upsample_linear(target_array, factor):
+
+class AverageUpsampling(sp.linop.Linop):
+    """Upsampling linear operator.
+
+    Args:
+        ishape (tuple of ints): Input shape.
+        factor (tuple of ints): Upsampling factor.
+        shift (None of tuple of ints): Shifts before up-sampling.
+
     """
-    Given a m by n matrix 
+
+    def __init__(self, oshape: tuple[int], factors: tuple[int], shift=None):
+        self.factors = factors
+
+        if shift is None:
+            shift = [0] * len(oshape)
+
+        self.shift = shift
+        ishape = [
+            ((i - s + f - 1) // f) for i, f, s in zip(oshape, factors, shift)
+        ]
+
+        super().__init__(oshape, ishape)
+
+
+    def _apply(self, input):
+        device = backend.get_device(input)
+        with device:
+            return upsample_average(input, self.oshape, self.factors)
+
+    def _adjoint_linop(self):
+        return AverageDownsampling(self.oshape, self.factors, shift=self.shift)
+
+
+def upsample_average(iarray, oshape, factors):
     """
-
-
-if __name__ == "__main__":
-    A = np.array([[1,2],[3,4],[5,6]])
-    # A = np.arange(180)
-    print(downsample_average(A, ))
+    Upsamples the input array by the given factors into the given output shape
+    """
+    for dim in range(iarray.ndim):
+        #Extracts the multiplier from factors with error correction
+        if dim < len(factors):
+            multiplier = factors[dim]
+        else:
+            multiplier = 1
+        iarray = np.repeat(iarray, multiplier, axis=dim)
+    slices = tuple(slice(None, dim) for dim in oshape)
+    return 1/6 * iarray[slices]
