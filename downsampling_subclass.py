@@ -14,17 +14,10 @@ class AverageDownsampling(sp.linop.Linop):
         factor (tuple of ints): Downsampling factor.
         shift (None of tuple of ints): Shifts before down-sampling.
     """
-
-    def __init__(self, ishape: tuple[int], factors: tuple[int], shift=None):
+    def __init__(self, ishape: tuple[int], factors: tuple[int]):
         self.factors = factors
+        oshape = get_oshape(ishape, factors)
 
-        if shift is None:
-            shift = [0] * len(ishape)
-
-        self.shift = shift
-        oshape = [
-            ((i - s + f - 1) // f) for i, f, s in zip(ishape, factors, shift)
-        ]
         super().__init__(oshape, ishape)
 
     def _apply(self, input):
@@ -33,8 +26,7 @@ class AverageDownsampling(sp.linop.Linop):
             return downsample_average(input, self.factors)
 
     def _adjoint_linop(self):
-        return AverageUpsampling(self.ishape, self.factors, shift=self.shift)
-    
+        return AverageUpsampling(self.ishape, self.factors)    
 
 
 def downsample_average(iarray, factor: tuple[int]):
@@ -62,6 +54,16 @@ def downsample_average(iarray, factor: tuple[int]):
     return iarray
 
 
+def get_oshape(ishape, factors):
+    """
+    Calculates the output shape after downsampling.
+    Factors must evenly divide ishape or else an error is raised
+    """
+    #If any of the modulo pairings between ishape and factors aren't 0 raise error
+    if any(i % f for i, f in zip(ishape, factors)):
+        raise ValueError(f"factors cause remainder, {ishape} should be evenly divisable by {factors}")
+    return [i // f for i,f in zip(ishape, factors)]
+
 class AverageUpsampling(sp.linop.Linop):
     """Upsampling linear operator.
 
@@ -72,16 +74,10 @@ class AverageUpsampling(sp.linop.Linop):
 
     """
 
-    def __init__(self, oshape: tuple[int], factors: tuple[int], shift=None):
+    def __init__(self, oshape: tuple[int], factors: tuple[int]):
         self.factors = factors
 
-        if shift is None:
-            shift = [0] * len(oshape)
-
-        self.shift = shift
-        ishape = [
-            ((i - s + f - 1) // f) for i, f, s in zip(oshape, factors, shift)
-        ]
+        ishape = [i // f for i,f in zip(oshape, factors)]
 
         super().__init__(oshape, ishape)
 
@@ -92,7 +88,7 @@ class AverageUpsampling(sp.linop.Linop):
             return upsample_average(input, self.oshape, self.factors)
 
     def _adjoint_linop(self):
-        return AverageDownsampling(self.oshape, self.factors, shift=self.shift)
+        return AverageDownsampling(self.oshape, self.factors)
 
 
 def upsample_average(iarray, oshape, factors):
@@ -108,8 +104,3 @@ def upsample_average(iarray, oshape, factors):
         iarray = np.repeat(iarray/multiplier, multiplier, axis=dim)
     slices = tuple(slice(None, dim) for dim in oshape)
     return iarray[slices]
-
-if __name__ == "__main__":
-    np.random.seed(100)
-    print(A := np.arange(12))
-    print(upsample_average(A, (36,), (3,)))
