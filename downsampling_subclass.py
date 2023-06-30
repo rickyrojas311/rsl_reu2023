@@ -105,6 +105,11 @@ def upsample_average(iarray, oshape, factors):
             multiplier = factors[dim]
         else:
             multiplier = 1
-        iarray = np.repeat(iarray, multiplier, axis=dim)
+        iarray = np.repeat(iarray/multiplier, multiplier, axis=dim)
     slices = tuple(slice(None, dim) for dim in oshape)
-    return 1/6 * iarray[slices]
+    return iarray[slices]
+
+if __name__ == "__main__":
+    np.random.seed(100)
+    print(A := np.arange(12))
+    print(upsample_average(A, (36,), (3,)))
