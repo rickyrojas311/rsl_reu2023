@@ -34,10 +34,10 @@ if __name__ == "__main__":
     # print(upscale_res := A.H * low_res)
     # print(is_tranpose(ishape, factor))
 
-    ishape = (5,)
+    ishape = (4,2, 6)
     print("Starting Matrix: \n", x := np.random.rand(*ishape))
     # x = np.array([[1,2],[3,4],[5,6]])
-    print(factor := (2,))
+    print(factor := (2,2, 2))
     A = spl.AverageDownsampling(ishape, factor)
     print("Downsample: \n", y := A(x))
     print("Upsample: \n", x_prime := A.H * y)
