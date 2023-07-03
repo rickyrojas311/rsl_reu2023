@@ -11,6 +11,7 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 
 import downsampling_subclass as spl
+import anisotropic_operator as ani
 
 
 def is_tranpose(ishape, factors):
