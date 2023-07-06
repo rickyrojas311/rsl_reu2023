@@ -11,10 +11,10 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 
 import downsampling_subclass as spl
-import anisotropic_operator as ani
+import anisotropic_operator_subclass as ani
 
 
-def is_tranpose(ishape, factors):
+def is_transpose(ishape, factors):
     """
     Checks properties of the transpose of A to verify A.H is the transpose
     of A
@@ -39,7 +39,7 @@ def size_test(shape, factor):
     A = spl.AverageDownsampling(shape, factor)
     print("Downsample: \n", y := A(x))
     print("Upsample: \n", x_prime := A.H * y)
-    print("Is tranpose:", is_tranpose(shape, factor))
+    print("Is tranpose:", is_transpose(shape, factor))
 
 if __name__ == "__main__":
     np.random.seed(100)
