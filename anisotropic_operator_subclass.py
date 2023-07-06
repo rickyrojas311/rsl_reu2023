@@ -5,7 +5,6 @@ anisotropic operator which encodes anatomical data in its operation
 import numpy as np
 import sigpy as sp
 from sigpy import backend
-from downsampling_practice import is_transpose
 
 class AnisotropicOperator(sp.linop.Linop):
     """
@@ -13,7 +12,7 @@ class AnisotropicOperator(sp.linop.Linop):
     Requires input data and anatomical_data
     """
     def __init__(self, ishape: tuple[int], anatomical_data: np.ndarray):
-        oshape = ishape
+        oshape = (2, *ishape)
         self.a_data = anatomical_data
         super().__init__(oshape, ishape)
 
@@ -23,7 +22,7 @@ class AnisotropicOperator(sp.linop.Linop):
             return anisotropic_operator(input, self.a_data, self.ishape)
 
     def _adjoint_linop(self):
-        return AnisotropicAdjoint(self.ishape, self.a_data)
+        return AnisotropicAdjoint(self.oshape, self.a_data)
         
 def get_xi(v: np.ndarray, eta=0.001):
     r"""
@@ -41,7 +40,7 @@ def projection_operator(x: np.ndarray, v: np.ndarray):
     D(x) = I - ξ(x)ξ^\top(x)
     """
     xi = get_xi(v)
-    dot_scalar = xi @ x
+    dot_scalar = np.vdot(xi, x)
     return x - dot_scalar * xi
 
 def anisotropic_operator(x: np.ndarray, v: np.ndarray, ishape):
@@ -58,7 +57,7 @@ class AnisotropicAdjoint(sp.linop.Linop):
     The adjoint operator class for AnisotropicOperator
     """
     def __init__(self, ishape: tuple[int], anatomical_data: np.ndarray):
-        oshape = ishape
+        oshape = ishape[1:]
         self.a_data = anatomical_data
         super().__init__(oshape, ishape)
 
