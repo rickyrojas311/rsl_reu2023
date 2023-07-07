@@ -11,7 +11,7 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 
 import downsampling_subclass as spl
-import anisotropic_operator_subclass as ani
+import projection_operator_subclass as proj
 
 
 def is_transpose(ishape, factors):
