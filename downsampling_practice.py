@@ -11,7 +11,6 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 
 import downsampling_subclass as spl
-import projection_operator_subclass as proj
 
 
 def is_transpose(ishape, factors):
