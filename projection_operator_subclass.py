@@ -84,4 +84,5 @@ def get_xi(v: np.ndarray, eta: float):
     """
     gradient_v = sp.linop.FiniteDifference(v.shape)(v)
     xi = gradient_v / np.sqrt(eta ** 2 + np.linalg.norm(gradient_v, axis=0) ** 2)
+    # import ipdb; ipdb.set_trace()
     return xi
