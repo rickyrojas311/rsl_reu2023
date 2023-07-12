@@ -189,7 +189,7 @@ class AnatomicReconstructor():
         Saves reconstruction to a folder that can be read from later
         """
         recon_img = nib.Nifti1Image(img, self.img_header.affine, self.img_header.header)
-        filename = f"lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
+        filename = f"{self._ground_truth.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
         filename += ".nii"
@@ -201,7 +201,7 @@ class AnatomicReconstructor():
         Checks if an image with the current settings has already been generated. 
         If so it returns the path otherwise it returns None
         """
-        filename = f"lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
+        filename = f"{self._ground_truth.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
         filename += ".nii"
