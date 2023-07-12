@@ -1,6 +1,7 @@
 """
 Testing enviroment for anisotropic_operator_subclass
 """
+from __future__ import annotations
 import math
 
 try:
@@ -272,16 +273,17 @@ def diff_images(ground_truth, structural_data, saving_options):
 
 
 if __name__ == "__main__":
-    img_header = nib.as_closest_canonical(nib.load(r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Data\BraTS_002\images\T1.nii"))
+    img_header = nib.as_closest_canonical(nib.load("project_data/BraTS_Data/BraTS_002/images/T1.nii"))
     _ground_truth = img_header.get_fdata()#[:, :, 100]
-    img2_header = nib.as_closest_canonical(nib.load(r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Data\BraTS_002\images\T2.nii"))
+    img2_header = nib.as_closest_canonical(nib.load("project_data/BraTS_Data/BraTS_002/images/T2.nii"))
     _structural_data = img2_header.get_fdata()#[:, :, 100]
-    saving_options = {"given_path": r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Reconstructions", "img_header": img_header}
+    saving_options = {"given_path": "project_data/BraTS_Reconstructions", "img_header": img_header}
 
     # diff_images(_ground_truth, _structural_data, saving_options)
-    op = anic.AnatomicReconstructor(_structural_data, (8, 8, 5), 2, 1, 5000, False, saving_options)
+    op = anic.AnatomicReconstructor(_structural_data, (8, 8, 5), 0.015, 0.0015, 5001, False, saving_options)
     x = op(_ground_truth)
     # # print(find_mse(_ground_truth, x))
+
     # op.given_lambda = 33
     # y = op(_ground_truth)
     x= x[:, :, 100]

@@ -2,8 +2,9 @@
 Practice using the sigpy library to create a downsampling operator and its transpose 
 as well as verfiy that it is actually A^T
 """
-
+from __future__ import annotations
 import math
+
 try:
     import cupy as xp
 except ImportError:

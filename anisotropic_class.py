@@ -3,8 +3,10 @@ Implements subclass for Anatomically guided reconstruction using linear least
 squares regressor from sigpy and other subclasses
 Setters allow for dynamic setting
 """
+from __future__ import annotations
 from typing import Union
 import pathlib
+
 try:
     import cupy as xp
 except ImportError:
@@ -28,9 +30,9 @@ class AnatomicReconstructor():
         save_options={"given_path":, "img_header":}
         """
         if normalize:
-            self._anatomical_data = normalize_matrix(anatomical_data)
+            self._anatomical_data = xp.array(normalize_matrix(anatomical_data))
         else:
-            self._anatomical_data = anatomical_data
+            self._anatomical_data = xp.array(anatomical_data)
 
         self._downsampling_factor = downsampling_factor
         self._given_lambda = given_lambda
@@ -120,9 +122,9 @@ class AnatomicReconstructor():
         Allows for anatomical data to be adjusted 
         """
         if self._normalize:
-            self._anatomical_data = normalize_matrix(value)
+            self._anatomical_data = xp.array(normalize_matrix(value))
         else:
-            self._anatomical_data = value
+            self._anatomical_data = xp.array(value)
 
     @downsampling_factor.setter
     def downsampling_factor(self, value: tuple[int]):
@@ -157,9 +159,9 @@ class AnatomicReconstructor():
         already constructed images
         """
         if self._normalize:
-            self._ground_truth = normalize_matrix(iarray)
+            self._ground_truth = xp.array(normalize_matrix(iarray))
         else:
-            self._ground_truth = iarray
+            self._ground_truth = xp.array(iarray)
         if self.saving:
             filename = self.search_image()
             if filename is not None:
@@ -185,7 +187,7 @@ class AnatomicReconstructor():
         alg = sp.app.LinearLeastSquares(downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
         result = alg.run()
         masked_result = result * (self._ground_truth > 0.0001)
-        return masked_result
+        return masked_result.get()
     
 
     def save_image(self, img):

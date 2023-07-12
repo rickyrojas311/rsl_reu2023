@@ -2,6 +2,8 @@
 Linop Subclass for sigpy that implements the behavior of an
 anisotropic operator which encodes anatomical data in its operation
 """
+from __future__ import annotations
+
 try:
     import cupy as xp
 except ImportError:
