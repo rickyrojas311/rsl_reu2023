@@ -60,6 +60,8 @@ def get_oshape(ishape, factors):
     Factors must evenly divide ishape or else an error is raised
     """
     #If any of the modulo pairings between ishape and factors aren't 0 raise error
+    if len(ishape) is not len(factors):
+        raise ValueError(f"input shape is {ishape} with {len(ishape)} dimensions, factors {factors} are only set for {len(factors)} dimensions")
     if any(i % f for i, f in zip(ishape, factors)):
         raise ValueError(f"factors cause remainder, {ishape} should be evenly divisable by {factors}")
     return [i // f for i,f in zip(ishape, factors)]
