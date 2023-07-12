@@ -5,8 +5,11 @@ Setters allow for dynamic setting
 """
 from typing import Union
 import pathlib
+try:
+    import cupy as xp
+except ImportError:
+    import numpy as xp
 import numpy as np
-# import cupy as np
 import sigpy as sp
 import nibabel as nib
 
@@ -17,7 +20,7 @@ class AnatomicReconstructor():
     """
     class to facilate anatomic reconstruction, apply on low res data
     """
-    def __init__(self, anatomical_data: np.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool=False, save_options: dict = None) -> None:
+    def __init__(self, anatomical_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool=False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
 
@@ -112,7 +115,7 @@ class AnatomicReconstructor():
 
 
     @anatomical_data.setter
-    def anatomical_data(self, value: np.ndarray):
+    def anatomical_data(self, value: xp.ndarray):
         """
         Allows for anatomical data to be adjusted 
         """
@@ -146,7 +149,7 @@ class AnatomicReconstructor():
         self._img_header = value
 
 
-    def __call__(self, iarray) -> np.ndarray:
+    def __call__(self, iarray) -> xp.ndarray:
         """
         Calls the AnatomicReconstructor Operator on the inputed array
 

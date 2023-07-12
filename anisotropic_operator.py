@@ -3,8 +3,10 @@ Testing enviroment for anisotropic_operator_subclass
 """
 import math
 
-import numpy as np
-import pathlib
+try:
+    import cupy as xp
+except ImportError:
+    import numpy as xp
 import sigpy as sp
 import nibabel as nib
 import matplotlib.pyplot as plt
@@ -19,20 +21,20 @@ def is_transpose(input_op: sp.linop.Linop, ishape: tuple[int], oshape: tuple[int
     Checks properties of the transpose of A to verify A.H is the transpose
     of A
     """
-    x = np.random.rand(*ishape)
-    y = np.random.rand(*oshape)
+    x = xp.random.rand(*ishape)
+    y = xp.random.rand(*oshape)
     A_x = op(x)
     A_T = op.H
     A_T_y = A_T(y)
-    left = np.vdot(A_x, y)
-    right = np.vdot(x, A_T_y)
+    left = xp.vdot(A_x, y)
+    right = xp.vdot(x, A_T_y)
     return left, right, math.isclose(left, right)
 
-def find_mse(ground_truth: np.ndarray, reconstruction: np.ndarray):
+def find_mse(ground_truth: xp.ndarray, reconstruction: xp.ndarray):
     """
     Given two arrays of the same shape, finds the MSE between them
     """
-    return np.mean((ground_truth - reconstruction) ** 2)
+    return xp.mean((ground_truth - reconstruction) ** 2)
 
 def normalize_matrix(matrix):
     """
@@ -57,7 +59,7 @@ def produce_images():
 
     lambdas = [0, 1, 2, 3, 4, 16]
 
-    recons = np.zeros((len(lambdas),) + tuple(G.ishape))
+    recons = xp.zeros((len(lambdas),) + tuple(G.ishape))
     for i, lam in enumerate(lambdas):
         gproxy = sp.prox.L1Reg(op.oshape, lam)
         alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=6000)
@@ -71,7 +73,7 @@ def produce_images():
         ax.ravel()[i].axis("off")
     fig.show()
 
-def sweep_lambda(ground_truth: np.ndarray, structural_data: np.ndarray, min_lambda: int = 0, starting_interval: int = 32, max_iterations: int = 2000, percision: int = 0, eta: float = 1e-3):
+def sweep_lambda(ground_truth: xp.ndarray, structural_data: xp.ndarray, min_lambda: int = 0, starting_interval: int = 32, max_iterations: int = 2000, percision: int = 0, eta: float = 1e-3):
     """
     Sweeps the lamda value of linearleastsquares to find best result.
 
@@ -153,7 +155,7 @@ def eta_minimize(ground_truth, structural_data, iterations, given_lambda):
     minimizer = minimize_scalar(eta_objective, args=(ground_truth, structural_data, iterations, given_lambda), options={"xatol": 1e-2, "maxiter": 10}, method="bounded", bounds=(0, 1e-1))
     return minimizer
 
-def sweep_eta(ground_truth: np.ndarray, structural_data: np.ndarray, min_eta: float = 1e-6, starting_interval: float = 1e1, max_iterations: int = 2000, iterations: int = 15, lam: int = 32):
+def sweep_eta(ground_truth: xp.ndarray, structural_data: xp.ndarray, min_eta: float = 1e-6, starting_interval: float = 1e1, max_iterations: int = 2000, iterations: int = 15, lam: int = 32):
     """
     sweeps values of eta to find the one with the lowest MSE score
     """
@@ -250,14 +252,14 @@ def diff_images(ground_truth, structural_data, saving_options):
     ground_truth = normalize_matrix(ground_truth)
     lambdas = [1e-4,1e-3,5e-3,1e-2,1e-1,1]
 
-    recons = np.zeros((len(lambdas),) + ground_truth.shape)
+    recons = xp.zeros((len(lambdas),) + ground_truth.shape)
     for i, lam in enumerate(lambdas):
         op.given_lambda = lam
         image = op(ground_truth) - ground_truth
         # import ipdb; ipdb.set_trace()
         recons[i,...] = image
 
-    vmax = np.abs(recons).max()
+    vmax = xp.abs(recons).max()
     # ipdb.set_trace()
 
     fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(20,15))
