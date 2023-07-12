@@ -6,6 +6,7 @@ Setters allow for dynamic setting
 from typing import Union
 import pathlib
 import numpy as np
+# import cupy as np
 import sigpy as sp
 import nibabel as nib
 
