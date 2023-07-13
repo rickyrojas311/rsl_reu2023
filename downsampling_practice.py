@@ -2,8 +2,13 @@
 Practice using the sigpy library to create a downsampling operator and its transpose 
 as well as verfiy that it is actually A^T
 """
-
+from __future__ import annotations
 import math
+
+try:
+    import cupy as xp
+except ImportError:
+    import numpy as xp
 import numpy as np
 import sigpy as sp
 
@@ -18,14 +23,14 @@ def is_transpose(ishape, factors):
     Checks properties of the transpose of A to verify A.H is the transpose
     of A
     """
-    vectorA_size = np.prod(ishape)
+    vectorA_size = xp.prod(ishape)
     A = spl.AverageDownsampling((vectorA_size,), factors)
     A_transpose = A.H
-    x = np.random.rand(*ishape).flatten()
+    x = xp.random.rand(*ishape).flatten()
     A_x = A * x
-    y = np.random.rand(A_x.size)
-    left = np.dot(A_x, y)
-    right = np.dot(x, A_transpose * y)
+    y = xp.random.rand(A_x.size)
+    left = xp.dot(A_x, y)
+    right = xp.dot(x, A_transpose * y)
     return left, right, math.isclose(left, right)
 
 def size_test(shape, factor):
@@ -33,22 +38,22 @@ def size_test(shape, factor):
     Test case for Downsampling/Upsampling subclasses based on random matrices
     """
     
-    print("Starting Matrix: \n", x := np.random.rand(*shape))
+    print("Starting Matrix: \n", x := xp.random.rand(*shape))
     print(factor)
     A = spl.AverageDownsampling(shape, factor)
     print("Downsample: \n", y := A(x))
     print("Upsample: \n", x_prime := A.H * y)
-    print("Is tranpose:", is_transpose(shape, factor))
+    print("Is traxpose:", is_transpose(shape, factor))
 
 if __name__ == "__main__":
-    np.random.seed(100)
+    xp.random.seed(100)
     # size_test((240, 240, 155), (8, 8, 5))
 
     img_header = nib.as_closest_canonical(nib.load(r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Data\BraTS_002\images\T1.nii"))
     ground_truth = img_header.get_fdata()[:, :, 100]
     A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
     y = A(ground_truth)
-    x0 = np.random.rand(*A.ishape)
+    x0 = xp.random.rand(*A.ishape)
     alg = sp.app.LinearLeastSquares(A, y, x = x0)
     x = alg.run()
 

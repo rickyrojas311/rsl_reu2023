@@ -3,21 +3,28 @@ Implements subclass for Anatomically guided reconstruction using linear least
 squares regressor from sigpy and other subclasses
 Setters allow for dynamic setting
 """
+from __future__ import annotations
 from typing import Union
 import pathlib
+
+try:
+    import cupy as xp
+except ImportError:
+    import numpy as xp
 import numpy as np
-# import cupy as np
 import sigpy as sp
 import nibabel as nib
 
 import downsampling_subclass as spl
 import projection_operator_subclass as proj
 
+
 class AnatomicReconstructor():
     """
     class to facilate anatomic reconstruction, apply on low res data
     """
-    def __init__(self, anatomical_data: np.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool=False, save_options: dict = None) -> None:
+
+    def __init__(self, anatomical_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
 
@@ -25,9 +32,9 @@ class AnatomicReconstructor():
         save_options={"given_path":, "img_header":}
         """
         if normalize:
-            self._anatomical_data = normalize_matrix(anatomical_data)
+            self._anatomical_data = xp.array(normalize_matrix(anatomical_data))
         else:
-            self._anatomical_data = anatomical_data
+            self._anatomical_data = xp.array(anatomical_data)
 
         self._downsampling_factor = downsampling_factor
         self._given_lambda = given_lambda
@@ -42,11 +49,11 @@ class AnatomicReconstructor():
                 self._path = pathlib.Path(save_options["given_path"])
                 self._img_header = save_options["img_header"]
             except KeyError as mal:
-                raise ValueError(f"malformed save_options input {save_options}, image failed to save") from mal
+                raise ValueError(
+                    f"malformed save_options input {save_options}, image failed to save") from mal
             self.saving = True
         else:
             self.saving = False
-
 
     @property
     def anatomical_data(self):
@@ -98,8 +105,9 @@ class AnatomicReconstructor():
         try:
             return self._path
         except NameError as err:
-            raise ValueError("saving_options were not set so no path is declared") from err
-    
+            raise ValueError(
+                "saving_options were not set so no path is declared") from err
+
     @property
     def img_header(self):
         """
@@ -108,18 +116,18 @@ class AnatomicReconstructor():
         try:
             return self._img_header
         except NameError as err:
-            raise ValueError("saving_options were not set so no header is stored") from err
-
+            raise ValueError(
+                "saving_options were not set so no header is stored") from err
 
     @anatomical_data.setter
-    def anatomical_data(self, value: np.ndarray):
+    def anatomical_data(self, value: xp.ndarray):
         """
         Allows for anatomical data to be adjusted 
         """
         if self._normalize:
-            self._anatomical_data = normalize_matrix(value)
+            self._anatomical_data = xp.array(normalize_matrix(value))
         else:
-            self._anatomical_data = value
+            self._anatomical_data = xp.array(value)
 
     @downsampling_factor.setter
     def downsampling_factor(self, value: tuple[int]):
@@ -145,8 +153,7 @@ class AnatomicReconstructor():
     def img_header(self, value):
         self._img_header = value
 
-
-    def __call__(self, iarray) -> np.ndarray:
+    def __call__(self, iarray) -> xp.ndarray:
         """
         Calls the AnatomicReconstructor Operator on the inputed array
 
@@ -154,9 +161,9 @@ class AnatomicReconstructor():
         already constructed images
         """
         if self._normalize:
-            self._ground_truth = normalize_matrix(iarray)
+            self._ground_truth = xp.array(normalize_matrix(iarray))
         else:
-            self._ground_truth = iarray
+            self._ground_truth = xp.array(iarray)
         if self.saving:
             filename = self.search_image()
             if filename is not None:
@@ -165,31 +172,33 @@ class AnatomicReconstructor():
         reconstruction = self.run_reconstructor()
         self.save_image(reconstruction)
         return reconstruction
-        
-    
+
     def run_reconstructor(self):
         """
         Runs the reconstructor algorithm and masks the result to prevent the MSE being influenced by unnessary
         background pixels
         """
-        downsampler = spl.AverageDownsampling(self._ground_truth.shape, self._downsampling_factor)
+        downsampler = spl.AverageDownsampling(
+            self._ground_truth.shape, self._downsampling_factor)
         downsampled = downsampler(self._ground_truth)
         gradient_op = sp.linop.FiniteDifference(self._ground_truth.shape)
-        projection_op = proj.ProjectionOperator(gradient_op.oshape, self._anatomical_data, eta=self._given_eta)
+        projection_op = proj.ProjectionOperator(
+            gradient_op.oshape, self._anatomical_data, eta=self._given_eta)
         compose_op = sp.linop.Compose([projection_op, gradient_op])
         gproxy = sp.prox.L1Reg(compose_op.oshape, self._given_lambda)
 
-        alg = sp.app.LinearLeastSquares(downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
+        alg = sp.app.LinearLeastSquares(
+            downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
         result = alg.run()
         masked_result = result * (self._ground_truth > 0.0001)
-        return masked_result
-    
+        return masked_result.get()
 
     def save_image(self, img):
         """
         Saves reconstruction to a folder that can be read from later
         """
-        recon_img = nib.Nifti1Image(img, self.img_header.affine, self.img_header.header)
+        recon_img = nib.Nifti1Image(
+            img, self.img_header.affine, self.img_header.header)
         filename = f"{self._ground_truth.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
@@ -210,7 +219,6 @@ class AnatomicReconstructor():
         if search_path.exists():
             return search_path
         return None
-
 
 
 def normalize_matrix(matrix):

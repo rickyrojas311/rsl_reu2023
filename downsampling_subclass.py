@@ -1,10 +1,16 @@
 """
 Subclass for the downsampling object in scipy and associated functions
 """
+from __future__ import annotations
 
 import sigpy as sp
 from sigpy import backend
+try:
+    import cupy as xp
+except ImportError:
+    import numpy as xp
 import numpy as np
+
 
 class AverageDownsampling(sp.linop.Linop):
     """Downsampling linear operator.
@@ -46,11 +52,12 @@ def downsample_average(iarray, factor: tuple[int]):
         else:
             downsampling_factor = 1
         arrays = []
-        bucket_size = np.ceil(iarray.shape[dim]/downsampling_factor)
-        split_array = np.array_split(iarray, bucket_size, axis=dim)
+        bucket_size = int(np.ceil(iarray.shape[dim]/downsampling_factor))
+        # import ipdb; ipdb.set_trace()
+        split_array = xp.array_split(iarray, bucket_size, axis=dim)
         for array in split_array:
-            arrays.append(np.mean(array, axis=dim))
-        iarray = np.stack(arrays, axis=dim)
+            arrays.append(xp.mean(array, axis=dim))
+        iarray = xp.stack(arrays, axis=dim)
     return iarray
 
 
@@ -103,6 +110,6 @@ def upsample_average(iarray, oshape, factors):
             multiplier = factors[dim]
         else:
             multiplier = 1
-        iarray = np.repeat(iarray/multiplier, multiplier, axis=dim)
+        iarray = xp.repeat(iarray/multiplier, multiplier, axis=dim)
     slices = tuple(slice(None, dim) for dim in oshape)
     return iarray[slices]
