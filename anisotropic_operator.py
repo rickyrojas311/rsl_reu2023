@@ -24,8 +24,8 @@ def is_transpose(input_op: sp.linop.Linop, ishape: tuple[int], oshape: tuple[int
     """
     x = xp.random.rand(*ishape)
     y = xp.random.rand(*oshape)
-    A_x = op(x)
-    A_T = op.H
+    A_x = input_op(x)
+    A_T = input_op.H
     A_T_y = A_T(y)
     left = xp.vdot(A_x, y)
     right = xp.vdot(x, A_T_y)
@@ -74,7 +74,6 @@ def produce_images():
         ax.ravel()[i].axis("off")
     fig.show()
 
-def sweep_lambda(ground_truth: xp.ndarray, structural_data: xp.ndarray, min_lambda: int = 0, starting_interval: int = 32, max_iterations: int = 2000, percision: int = 0, eta: float = 1e-3):
     """
     Sweeps the lamda value of linearleastsquares to find best result.
 
@@ -138,9 +137,117 @@ def sweep_lambda(ground_truth: xp.ndarray, structural_data: xp.ndarray, min_lamb
                 prev = next
     return (low_lam, low, x, lambdas)
 
-# def sweep_lambda_new(ground_truth, structural_data, min_lambda: int = 0, starting_interval: int = 1, max_iterations: int = 5000, percision):
+def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper: anic.AnatomicReconstructor, prev: float, low: tuple[float]) -> tuple[float, xp.array]:
+    """
+    Recursive helper for the sweep lambda function
+    """
+    if interval <= percision:
+        oper.given_lambda = lam
+        return low[0]
+    else:
+        interval /= 2
+        oper.given_lambda = lam + direction * interval
+        recon = oper(ground_truth)
+        curr = find_mse(ground_truth, recon)
+        print(curr, oper.given_lambda, interval)
+        if curr < low[1]:
+            low = (oper.given_lambda, curr)
+        if curr < prev:
+            return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, direction, oper, curr, low)
+        else:
+            oper.given_lambda = lam - direction * interval
+            recon = oper(ground_truth)
+            temp = find_mse(ground_truth, recon)
+            if temp < low[1]:
+                low = (oper.given_lambda, temp)
+            if temp < curr:
+                if temp < prev:
+                    print(temp, oper.given_lambda, interval)
+                    return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, -direction, oper, temp, low)
+                else:
+                    print(temp, oper.given_lambda, interval)
+                    return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, direction, oper, temp, low)
+            else:
+                print(curr, lam + direction * interval, interval)
+                return sweep_lambda_helper(ground_truth, lam + direction * interval, interval, percision, direction, oper, curr, low)
 
-def eta_objective(x_eta: int, ground_truth, structural_data, iterations, given_lambda):
+def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
+    """
+    Function to sweep lambda values until lambda that minimizes MSE values is found.
+    Starts by sweeping to find the upperbound then calls the helper function to search the inner bounds
+    """
+    if oper.normalize:
+        ground_truth = normalize_matrix(ground_truth)
+    lam = min_lambda - starting_interval
+    prev = None
+    curr = None
+    while prev is None or prev > curr:
+        prev = curr
+        lam += starting_interval
+        oper.given_lambda = lam
+        recon = oper(ground_truth)
+        curr = find_mse(ground_truth, recon)
+        print(curr, lam)
+    result = sweep_lambda_helper(ground_truth, lam - starting_interval, starting_interval, percision, 1, oper, prev, (lam, curr))
+    return result
+
+def sweep_eta_helper(ground_truth, eta, interval, percision, direction, oper: anic.AnatomicReconstructor, prev: float, low: tuple[float]) -> tuple[float, xp.array]:
+    """
+    Recursive helper for the sweep eta function
+    """
+    if interval <= percision:
+        oper.given_eta = eta
+        return low[0]
+    else:
+        interval /= 2
+        oper.given_eta = eta + direction * interval
+        recon = oper(ground_truth)
+        curr = find_mse(ground_truth, recon)
+        print(curr, oper.given_eta, interval)
+        if curr < low[1]:
+            low = (oper.given_eta, curr)
+        if curr < prev:
+            return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, direction, oper, curr, low)
+        else:
+            oper.given_eta = eta - direction * interval
+            recon = oper(ground_truth)
+            temp = find_mse(ground_truth, recon)
+            if temp < low[1]:
+                low = (oper.given_eta, temp)
+            if temp < curr:
+                if temp < prev:
+                    print(temp, oper.given_eta, interval)
+                    return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, -direction, oper, temp, low)
+                else:
+                    print(temp, oper.given_eta, interval)
+                    return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, direction, oper, temp, low)
+            else:
+                print(curr, eta + direction * interval, interval)
+                return sweep_eta_helper(ground_truth, eta + direction * interval, interval, percision, direction, oper, curr, low)
+
+def sweep_eta(ground_truth, oper: anic.AnatomicReconstructor, min_eta: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
+    """
+    Function to sweep eta values until the eta that minimizes MSE values is found.
+    Starts by sweeping to find the upperbound then calls the helper function to search the inner bounds
+    """
+    if oper.normalize:
+        ground_truth = normalize_matrix(ground_truth)
+    eta = min_eta - starting_interval
+    prev = None
+    curr = None
+    while prev is None or prev > curr:
+        prev = curr
+        eta += starting_interval
+        if eta == 0:
+            oper.given_eta = 1e-9
+        else:
+            oper.given_eta = eta
+        recon = oper(ground_truth)
+        curr = find_mse(ground_truth, recon)
+        print(curr, eta)
+    result = sweep_eta_helper(ground_truth, eta - starting_interval, starting_interval, percision, 1, oper, prev, (eta, curr))
+    return result
+
     A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
     y = A(ground_truth)
     G = sp.linop.FiniteDifference(ground_truth.shape)
@@ -152,11 +259,9 @@ def eta_objective(x_eta: int, ground_truth, structural_data, iterations, given_l
     print(x_eta, mse)
     return mse
 
-def eta_minimize(ground_truth, structural_data, iterations, given_lambda):
     minimizer = minimize_scalar(eta_objective, args=(ground_truth, structural_data, iterations, given_lambda), options={"xatol": 1e-2, "maxiter": 10}, method="bounded", bounds=(0, 1e-1))
     return minimizer
 
-def sweep_eta(ground_truth: xp.ndarray, structural_data: xp.ndarray, min_eta: float = 1e-6, starting_interval: float = 1e1, max_iterations: int = 2000, iterations: int = 15, lam: int = 32):
     """
     sweeps values of eta to find the one with the lowest MSE score
     """
@@ -215,7 +320,6 @@ def sweep_eta(ground_truth: xp.ndarray, structural_data: xp.ndarray, min_eta: fl
                 prev = next
     return (eta, next, x, etas)
 
-
 def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, lambda_num, max_iterations, saving_options):
     """
     Plots MSE score by lamda value
@@ -273,30 +377,19 @@ def diff_images(ground_truth, structural_data, saving_options):
 
 
 if __name__ == "__main__":
-    img_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_002\images\T1.nii"))
-    _ground_truth = img_header.get_fdata()[:, :, 100]
-    img2_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_002\images\T2.nii"))
-    _structural_data = img2_header.get_fdata()[:, :, 100]
-    saving_options = {"given_path": r"project_data\BraTS_Reconstructions", "img_header": img_header}
+    _img_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_002\images\T1.nii"))
+    _ground_truth = _img_header.get_fdata()[:, :, 100]
+    _ground_truth = normalize_matrix(_ground_truth)
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_002\images\T2.nii"))
+    _structural_data = _img2_header.get_fdata()[:, :, 100]
+    saving_options = {"given_path": r"project_data\BraTS_Reconstructions", "img_header": _img_header}
 
-    # diff_images(_ground_truth, _structural_data, saving_options)
-    op = anic.AnatomicReconstructor(_structural_data, (8, 8), 2, 1, 5001, False, saving_options)
-    x = op(_ground_truth)
-    # # print(find_mse(_ground_truth, x))
 
-    # op.given_lambda = 33
-    # y = op(_ground_truth)
-    # x= x[:, :, 100]
+    _op = anic.AnatomicReconstructor(_structural_data, (8, 8), 0.001953125, 0.0078125, 8000, True, saving_options)
+    _op.given_eta = sweep_eta(_ground_truth, _op)
+    _op.given_lambda = sweep_lambda(_ground_truth, _op)
+    _x = _op(_ground_truth)
+    print(find_mse(_ground_truth, _x))
 
-    img = plt.imshow(x, "Greys_r", vmin=0, vmax=_ground_truth.max())
-
+    img = plt.imshow(_x, "Greys_r", vmin=0, vmax=_ground_truth.max())
     plt.show()
-
-    # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20,15))
-    # ax.ravel()[0].imshow(x, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[0].axis("off")
-    # ax.ravel()[1].imshow(y, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[1].axis("off")
-    # ax.ravel()[2].imshow(x - y, vmin = -x.max(), vmax = x.max(), cmap = 'seismic')
-    # ax.ravel()[2].axis("off")
-    # fig.show()

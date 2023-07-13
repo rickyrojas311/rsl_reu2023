@@ -188,10 +188,12 @@ class AnatomicReconstructor():
         gproxy = sp.prox.L1Reg(compose_op.oshape, self._given_lambda)
 
         alg = sp.app.LinearLeastSquares(
-            downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
+            downsampler, downsampledr, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
         result = alg.run()
         masked_result = result * (self._ground_truth > 0.0001)
-        return masked_result.get()
+        if xp.__name__ == "cupy":
+            masked_result = masked_result.get()
+        return masked_result
 
     def save_image(self, img):
         """
