@@ -377,14 +377,14 @@ def diff_images(ground_truth, structural_data, saving_options):
 
 
 if __name__ == "__main__":
-    _img_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_002\images\T1.nii"))
+    _img_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_002/images/T1.nii"))
     _ground_truth = _img_header.get_fdata()[:, :, 100]
     _ground_truth = normalize_matrix(_ground_truth)
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_002\images\T2.nii"))
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_002/images/T2.nii"))
     _structural_data = _img2_header.get_fdata()[:, :, 100]
-    saving_options = {"given_path": r"project_data\BraTS_Reconstructions", "img_header": _img_header}
+    saving_options = {"given_path": r"project_data/BraTS_Reconstructions", "img_header": _img_header}
 
-    _low_res_data = spl.AverageDownsampling((240,240), (8,8))(_ground_truth)
+    _low_res_data = spl.AverageDownsampling((240,240), (8,8))(xp.array(_ground_truth))
     _op = anic.AnatomicReconstructor(_structural_data, _low_res_data, (8, 8), 0.001953125, 0.0078125, 10000, True, saving_options)
     _op.given_eta = sweep_eta(_ground_truth, _op, percision=1e-3)
     _op.given_lambda = sweep_lambda(_ground_truth, _op, percision=1e-3)
