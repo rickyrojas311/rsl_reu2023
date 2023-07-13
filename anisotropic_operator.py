@@ -384,12 +384,43 @@ if __name__ == "__main__":
     _structural_data = _img2_header.get_fdata()[:, :, 100]
     saving_options = {"given_path": r"project_data\BraTS_Reconstructions", "img_header": _img_header}
 
-
-    _op = anic.AnatomicReconstructor(_structural_data, (8, 8), 0.001953125, 0.0078125, 8000, True, saving_options)
-    _op.given_eta = sweep_eta(_ground_truth, _op)
-    _op.given_lambda = sweep_lambda(_ground_truth, _op)
+    _low_res_data = spl.AverageDownsampling((240,240), (8,8))(_ground_truth)
+    _op = anic.AnatomicReconstructor(_structural_data, _low_res_data, (8, 8), 0.001953125, 0.0078125, 10000, True, saving_options)
+    _op.given_eta = sweep_eta(_ground_truth, _op, percision=1e-3)
+    _op.given_lambda = sweep_lambda(_ground_truth, _op, percision=1e-3)
     _x = _op(_ground_truth)
     print(find_mse(_ground_truth, _x))
 
     img = plt.imshow(_x, "Greys_r", vmin=0, vmax=_ground_truth.max())
     plt.show()
+
+    # _img1_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi_gt.nii.gz"))
+    # _ground_truth = _img1_header.get_fdata()
+    # print(_ground_truth.shape)
+    # _ground_truth = _ground_truth[:, :, 100, 1]
+    # print(_ground_truth.shape)
+
+    # img = plt.imshow(_ground_truth, "Greys_r", vmin=0, vmax=_ground_truth.max())
+    # plt.show()
+    # # _ground_truth = normalize_matrix(_ground_truth)
+    # _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
+    # _low_res = _img2_header.get_fdata()[:, :, 100]
+    # # _low_res = normalize_matrix(_low_res)
+    # print(_low_res.shape)
+    # _img3_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_009\images\FLAIR.nii"))
+    # _structural_data = _img3_header.get_fdata()[:, :, 100]
+    # _structural_data = normalize_matrix(_structural_data)
+
+    # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20,15))
+    # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[0].set_title("ground truth")
+    # ax.ravel()[0].axis("off")
+    # ax.ravel()[1].imshow(_low_res, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[1].set_title("low res")
+    # ax.ravel()[1].axis("off")
+    # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[2].set_title("structure")
+    # ax.ravel()[2].axis("off")
+    # fig.show()
+
+

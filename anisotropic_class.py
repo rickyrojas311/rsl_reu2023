@@ -24,7 +24,7 @@ class AnatomicReconstructor():
     class to facilate anatomic reconstruction, apply on low res data
     """
 
-    def __init__(self, anatomical_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
+    def __init__(self, anatomical_data: xp.ndarray, low_res_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
 
@@ -33,8 +33,10 @@ class AnatomicReconstructor():
         """
         if normalize:
             self._anatomical_data = xp.array(normalize_matrix(anatomical_data))
+            self._low_res_data = xp.array(normalize_matrix(low_res_data))
         else:
             self._anatomical_data = xp.array(anatomical_data)
+            self._low_res_data = xp.array(low_res_data)
 
         self._downsampling_factor = downsampling_factor
         self._given_lambda = given_lambda
@@ -61,6 +63,13 @@ class AnatomicReconstructor():
         returns anatomical data built into operator
         """
         return self._anatomical_data
+    
+    @property
+    def low_res_data(self):
+        """
+        returns inputed low_res_data
+        """
+        return self._low_res_data
 
     @property
     def downsampling_factor(self):
@@ -129,6 +138,16 @@ class AnatomicReconstructor():
         else:
             self._anatomical_data = xp.array(value)
 
+    @low_res_data.setter
+    def low_res_data(self, value: xp.ndarray):
+        """
+        Allows for low_res_data to be adjusted
+        """
+        if self._normalize:
+            self._low_res_data = xp.array(normalize_matrix(value))
+        else:
+            self._low_res_data = xp.array(value)
+
     @downsampling_factor.setter
     def downsampling_factor(self, value: tuple[int]):
         self._downsampling_factor = value
@@ -180,7 +199,8 @@ class AnatomicReconstructor():
         """
         downsampler = spl.AverageDownsampling(
             self._ground_truth.shape, self._downsampling_factor)
-        downsampled = downsampler(self._ground_truth)
+        # downsampled = downsampler(self._ground_truth)
+        downsampled = self._low_res_data
         gradient_op = sp.linop.FiniteDifference(self._ground_truth.shape)
         projection_op = proj.ProjectionOperator(
             gradient_op.oshape, self._anatomical_data, eta=self._given_eta)
@@ -188,7 +208,7 @@ class AnatomicReconstructor():
         gproxy = sp.prox.L1Reg(compose_op.oshape, self._given_lambda)
 
         alg = sp.app.LinearLeastSquares(
-            downsampler, downsampledr, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
+            downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
         result = alg.run()
         masked_result = result * (self._ground_truth > 0.0001)
         if xp.__name__ == "cupy":
