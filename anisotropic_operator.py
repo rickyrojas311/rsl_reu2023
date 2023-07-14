@@ -3,6 +3,7 @@ Testing enviroment for anisotropic_operator_subclass
 """
 from __future__ import annotations
 import math
+import pathlib
 
 try:
     import cupy as xp
@@ -147,7 +148,7 @@ def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper:
     else:
         interval /= 2
         oper.given_lambda = lam + direction * interval
-        recon = oper(ground_truth)
+        recon = oper(oper.low_res_data)
         curr = find_mse(ground_truth, recon)
         print(curr, oper.given_lambda, interval)
         if curr < low[1]:
@@ -156,7 +157,7 @@ def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper:
             return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, direction, oper, curr, low)
         else:
             oper.given_lambda = lam - direction * interval
-            recon = oper(ground_truth)
+            recon = oper(oper.low_res_data)
             temp = find_mse(ground_truth, recon)
             if temp < low[1]:
                 low = (oper.given_lambda, temp)
@@ -185,7 +186,7 @@ def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int
         prev = curr
         lam += starting_interval
         oper.given_lambda = lam
-        recon = oper(ground_truth)
+        recon = oper(oper.low_res_data)
         curr = find_mse(ground_truth, recon)
         print(curr, lam)
     result = sweep_lambda_helper(ground_truth, lam - starting_interval, starting_interval, percision, 1, oper, prev, (lam, curr))
@@ -201,7 +202,7 @@ def sweep_eta_helper(ground_truth, eta, interval, percision, direction, oper: an
     else:
         interval /= 2
         oper.given_eta = eta + direction * interval
-        recon = oper(ground_truth)
+        recon = oper(oper.low_res_data)
         curr = find_mse(ground_truth, recon)
         print(curr, oper.given_eta, interval)
         if curr < low[1]:
@@ -210,7 +211,7 @@ def sweep_eta_helper(ground_truth, eta, interval, percision, direction, oper: an
             return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, direction, oper, curr, low)
         else:
             oper.given_eta = eta - direction * interval
-            recon = oper(ground_truth)
+            recon = oper(oper.low_res_data)
             temp = find_mse(ground_truth, recon)
             if temp < low[1]:
                 low = (oper.given_eta, temp)
@@ -242,7 +243,7 @@ def sweep_eta(ground_truth, oper: anic.AnatomicReconstructor, min_eta: int = 0, 
             oper.given_eta = 1e-9
         else:
             oper.given_eta = eta
-        recon = oper(ground_truth)
+        recon = oper(oper.low_res_data)
         curr = find_mse(ground_truth, recon)
         print(curr, eta)
     result = sweep_eta_helper(ground_truth, eta - starting_interval, starting_interval, percision, 1, oper, prev, (eta, curr))
@@ -312,34 +313,48 @@ if __name__ == "__main__":
     _low_res_data = _img2_header.get_fdata()[:, :, 56, 0]
     _low_res_data = _low_res_data[::11, ::11]
     _low_res_data = normalize_matrix(_low_res_data)
-    _img3_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/FLAIR.nii"))
-    _structural_data = _img3_header.get_fdata()[:, :, 79]
+    _img3_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2_flair.nii.gz"))
+    _structural_data = _img3_header.get_fdata()[:, :, 56]
     _structural_data = xp.array(normalize_matrix(_structural_data))
-    _down = spl.AverageDownsampling(_structural_data.shape, (2, 2))
-    _structural_data = _down(_structural_data)
+    # _down = spl.AverageDownsampling(_structural_data.shape, (2, 2))
+    # _structural_data = _down(_structural_data)
 
     # print(_low_res_data.shape, _structural_data.shape)
 
     save_options = {"given_path": r"project_data/BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
-    _op = anic.AnatomicReconstructor(_structural_data, (12, 12), 0.007, 0.0015, 10000, True, save_options)
-    _op.given_lambda = sweep_lambda(_ground_truth, _op)
-    _op.given_eta = sweep_eta(_ground_truth, _op)
-    recon = _op(_low_res_data)
+    _op = anic.AnatomicReconstructor(_structural_data, (11, 11), 0.007, 0.0015, 8000, True, save_options)
+    # _op.low_res_data = _low_res_data
+    # _op.given_lambda = sweep_lambda(_ground_truth, _op)
+    # _op.given_eta = sweep_eta(_ground_truth, _op)
+    # _recon = _op(_low_res_data)
 
-    img = plt.imshow(recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
-    plt.show()
+    # img = plt.imshow(_recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
+    # filename = f"{_low_res_data.ndim}D_lambda-{_op.given_lambda}_eta-{_op.given_eta}_iter-{_op.max_iter}"
+    # if _op.normalize:
+    #     filename += "_norm"
+    # filename += ".png"
+    # search_path = pathlib.Path("project_data/BraTS_Noise_Expirements_Reconstructions/Final Build").joinpath(filename)
+    # plt.savefig(search_path)
+    # plt.show()
 
-    # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20,15))
+    # _recon = _op(_low_res_data)
+    # img = plt.imshow(_recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
+    # plt.show()
+
+    # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
     # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[0].set_title("ground truth")
     # ax.ravel()[0].axis("off")
     # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[1].set_title("low res")
     # ax.ravel()[1].axis("off")
-    # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[2].imshow(_structural_data.get(), vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[2].set_title("structure")
     # ax.ravel()[2].axis("off")
+    # ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[3].set_title("Reconstruction")
+    # ax.ravel()[3].axis("off")
     # fig.show()
-    # fig.savefig(r"project_data\BraTS_Noise_Expirements_Reconstructions\patient_9_all_data_side_by")
+    # fig.savefig(r"project_data\BraTS_Noise_Expirements_Reconstructions\patient_9_all_data_side_by+reconstruction")
 
 

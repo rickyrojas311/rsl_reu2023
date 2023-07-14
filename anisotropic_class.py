@@ -43,7 +43,6 @@ class AnatomicReconstructor():
         self._normalize = normalize
         self._low_res_ishape = tuple(i // f for i,f in zip(self._anatomical_data.shape, self._downsampling_factor))
 
-        self._ground_truth = None
         self._low_res_data = None
 
         if save_options is not None:
@@ -69,7 +68,10 @@ class AnatomicReconstructor():
         """
         returns inputed low_res_data
         """
-        return self._low_res_data
+        if self._low_res_data is not None:
+            return self._low_res_data
+        raise ValueError(
+            f"Input low_res_data into operator before calling it. Use .low_res_data setter or run {__name__} first")
 
     @property
     def downsampling_factor(self):
