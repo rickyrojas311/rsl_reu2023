@@ -377,33 +377,34 @@ def diff_images(ground_truth, structural_data, saving_options):
 
 
 if __name__ == "__main__":
-    # _img1_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi_gt.nii.gz"))
-    # _ground_truth = _img1_header.get_fdata()
-    # print(_ground_truth.shape)
-    # _ground_truth = _ground_truth[:, :, 100, 1]
-    # print(_ground_truth.shape)
+    _img1_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi_gt.nii.gz"))
+    _ground_truth = _img1_header.get_fdata()[:, :, 56, 0]
+    _ground_truth = normalize_matrix(_ground_truth)
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi.nii.gz"))
+    _low_res_data = _img2_header.get_fdata()[:, :, 56, 0]
+    _low_res_data = normalize_matrix(_low_res_data)
+    _img3_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_009\images\FLAIR.nii"))
+    _structural_data = _img3_header.get_fdata()[:, :, 79]
+    _structural_data = normalize_matrix(_structural_data)
 
-    # img = plt.imshow(_ground_truth, "Greys_r", vmin=0, vmax=_ground_truth.max())
-    # plt.show()
-    # # _ground_truth = normalize_matrix(_ground_truth)
-    # _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
-    # _low_res = _img2_header.get_fdata()[:, :, 100]
-    # # _low_res = normalize_matrix(_low_res)
-    # print(_low_res.shape)
-    # _img3_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_009\images\FLAIR.nii"))
-    # _structural_data = _img3_header.get_fdata()[:, :, 100]
-    # _structural_data = normalize_matrix(_structural_data)
+    save_options = {"given_path": r"project_data\BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
+    _op = anic.AnatomicReconstructor(_structural_data, _low_res_data, (11, 11), 0.007, 0.0015, 8000, True, save_options)
+    recon = _op(_ground_truth)
+
+    plt.imshow(recon, "Grey_r", vmin=0, vmax=_ground_truth)
+    plt.show()
 
     # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20,15))
     # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[0].set_title("ground truth")
     # ax.ravel()[0].axis("off")
-    # ax.ravel()[1].imshow(_low_res, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[1].set_title("low res")
     # ax.ravel()[1].axis("off")
     # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[2].set_title("structure")
     # ax.ravel()[2].axis("off")
     # fig.show()
+    # fig.savefig(r"project_data\BraTS_Noise_Expirements_Reconstructions\patient_9_all_data_side_by")
 
 
