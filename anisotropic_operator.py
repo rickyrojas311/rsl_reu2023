@@ -173,7 +173,7 @@ def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper:
 
 def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
     """
-    Function to sweep lambda values until lambda that minimizes MSE values is found.
+    Function to sweep lambda values until the lambda that minimizes MSE values is found.
     Starts by sweeping to find the upperbound then calls the helper function to search the inner bounds
     """
     if oper.normalize:
@@ -247,78 +247,6 @@ def sweep_eta(ground_truth, oper: anic.AnatomicReconstructor, min_eta: int = 0, 
         print(curr, eta)
     result = sweep_eta_helper(ground_truth, eta - starting_interval, starting_interval, percision, 1, oper, prev, (eta, curr))
     return result
-
-    A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
-    y = A(ground_truth)
-    G = sp.linop.FiniteDifference(ground_truth.shape)
-    P = proj.ProjectionOperator(G.oshape, structural_data, eta=x_eta)
-    op = sp.linop.Compose([P,G])
-    gproxy = sp.prox.L1Reg(op.oshape, given_lambda)
-    alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=iterations)
-    mse = find_mse(ground_truth, alg.run())
-    print(x_eta, mse)
-    return mse
-
-    minimizer = minimize_scalar(eta_objective, args=(ground_truth, structural_data, iterations, given_lambda), options={"xatol": 1e-2, "maxiter": 10}, method="bounded", bounds=(0, 1e-1))
-    return minimizer
-
-    """
-    sweeps values of eta to find the one with the lowest MSE score
-    """
-    #Sets up operator for image reconstruction
-    A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
-    y = A(ground_truth)
-    G = sp.linop.FiniteDifference(ground_truth.shape)
-    P = proj.ProjectionOperator(G.oshape, structural_data)
-    op = sp.linop.Compose([P,G])
-    gproxy = sp.prox.L1Reg(op.oshape, lam)
-
-    #Initalizes kwargs and first MSE
-    eta = min_eta
-    interval = starting_interval
-    P.eta = eta
-    alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-    prev = curr = find_mse(ground_truth, alg.run())
-    next = 0
-    max_search = True
-    etas = []
-    etas.append((eta, interval, prev))
-    eta += interval
-
-
-    for i in range(iterations):
-        #Finds MSE for current lam
-        P.eta = eta
-        print(eta, P.eta, curr)
-        alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-        x = alg.run()
-        next = find_mse(ground_truth, x)
-        etas.append((eta, interval, max_search, next))
-        #Only runs when upperbound not yet determined
-        if max_search and next < curr:
-            eta += interval
-            prev = curr
-            curr = next
-        #Runs once to start search of log(N)
-        elif max_search:
-            interval /= 2
-            if prev < next and (eta - interval * 3) > 0:
-                eta -= interval * 3
-            else: 
-                eta -= interval
-                prev = curr
-                curr = next
-            max_search = False
-        #Searches for min MSE in log(N)
-        else:
-            interval /= 2
-            if prev < curr:
-                eta -= interval
-                curr = next
-            else: 
-                eta += interval
-                prev = next
-    return (eta, next, x, etas)
 
 def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, lambda_num, max_iterations, saving_options):
     """
