@@ -305,21 +305,28 @@ def diff_images(ground_truth, structural_data, saving_options):
 
 
 if __name__ == "__main__":
-    _img1_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi_gt.nii.gz"))
+    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
     _ground_truth = _img1_header.get_fdata()[:, :, 56, 0]
     _ground_truth = normalize_matrix(_ground_truth)
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi.nii.gz"))
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
     _low_res_data = _img2_header.get_fdata()[:, :, 56, 0]
+    _low_res_data = _low_res_data[::11, ::11]
     _low_res_data = normalize_matrix(_low_res_data)
-    _img3_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_009\images\FLAIR.nii"))
+    _img3_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/FLAIR.nii"))
     _structural_data = _img3_header.get_fdata()[:, :, 79]
-    _structural_data = normalize_matrix(_structural_data)
+    _structural_data = xp.array(normalize_matrix(_structural_data))
+    _down = spl.AverageDownsampling(_structural_data.shape, (2, 2))
+    _structural_data = _down(_structural_data)
 
-    save_options = {"given_path": r"project_data\BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
-    _op = anic.AnatomicReconstructor(_structural_data, _low_res_data, (11, 11), 0.007, 0.0015, 8000, True, save_options)
-    recon = _op(_ground_truth)
+    # print(_low_res_data.shape, _structural_data.shape)
 
-    plt.imshow(recon, "Grey_r", vmin=0, vmax=_ground_truth)
+    save_options = {"given_path": r"project_data/BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
+    _op = anic.AnatomicReconstructor(_structural_data, (12, 12), 0.007, 0.0015, 10000, True, save_options)
+    _op.given_lambda = sweep_lambda(_ground_truth, _op)
+    _op.given_eta = sweep_eta(_ground_truth, _op)
+    recon = _op(_low_res_data)
+
+    img = plt.imshow(recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
     plt.show()
 
     # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20,15))
