@@ -173,7 +173,7 @@ def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper:
 
 def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
     """
-    Function to sweep lambda values until lambda that minimizes MSE values is found.
+    Function to sweep lambda values until the lambda that minimizes MSE values is found.
     Starts by sweeping to find the upperbound then calls the helper function to search the inner bounds
     """
     if oper.normalize:
@@ -248,78 +248,6 @@ def sweep_eta(ground_truth, oper: anic.AnatomicReconstructor, min_eta: int = 0, 
     result = sweep_eta_helper(ground_truth, eta - starting_interval, starting_interval, percision, 1, oper, prev, (eta, curr))
     return result
 
-    A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
-    y = A(ground_truth)
-    G = sp.linop.FiniteDifference(ground_truth.shape)
-    P = proj.ProjectionOperator(G.oshape, structural_data, eta=x_eta)
-    op = sp.linop.Compose([P,G])
-    gproxy = sp.prox.L1Reg(op.oshape, given_lambda)
-    alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=iterations)
-    mse = find_mse(ground_truth, alg.run())
-    print(x_eta, mse)
-    return mse
-
-    minimizer = minimize_scalar(eta_objective, args=(ground_truth, structural_data, iterations, given_lambda), options={"xatol": 1e-2, "maxiter": 10}, method="bounded", bounds=(0, 1e-1))
-    return minimizer
-
-    """
-    sweeps values of eta to find the one with the lowest MSE score
-    """
-    #Sets up operator for image reconstruction
-    A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
-    y = A(ground_truth)
-    G = sp.linop.FiniteDifference(ground_truth.shape)
-    P = proj.ProjectionOperator(G.oshape, structural_data)
-    op = sp.linop.Compose([P,G])
-    gproxy = sp.prox.L1Reg(op.oshape, lam)
-
-    #Initalizes kwargs and first MSE
-    eta = min_eta
-    interval = starting_interval
-    P.eta = eta
-    alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-    prev = curr = find_mse(ground_truth, alg.run())
-    next = 0
-    max_search = True
-    etas = []
-    etas.append((eta, interval, prev))
-    eta += interval
-
-
-    for i in range(iterations):
-        #Finds MSE for current lam
-        P.eta = eta
-        print(eta, P.eta, curr)
-        alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-        x = alg.run()
-        next = find_mse(ground_truth, x)
-        etas.append((eta, interval, max_search, next))
-        #Only runs when upperbound not yet determined
-        if max_search and next < curr:
-            eta += interval
-            prev = curr
-            curr = next
-        #Runs once to start search of log(N)
-        elif max_search:
-            interval /= 2
-            if prev < next and (eta - interval * 3) > 0:
-                eta -= interval * 3
-            else: 
-                eta -= interval
-                prev = curr
-                curr = next
-            max_search = False
-        #Searches for min MSE in log(N)
-        else:
-            interval /= 2
-            if prev < curr:
-                eta -= interval
-                curr = next
-            else: 
-                eta += interval
-                prev = next
-    return (eta, next, x, etas)
-
 def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, lambda_num, max_iterations, saving_options):
     """
     Plots MSE score by lamda value
@@ -377,21 +305,28 @@ def diff_images(ground_truth, structural_data, saving_options):
 
 
 if __name__ == "__main__":
-    _img1_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi_gt.nii.gz"))
+    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
     _ground_truth = _img1_header.get_fdata()[:, :, 56, 0]
     _ground_truth = normalize_matrix(_ground_truth)
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\Noise_Experiments\DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001\dmi.nii.gz"))
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
     _low_res_data = _img2_header.get_fdata()[:, :, 56, 0]
+    _low_res_data = _low_res_data[::11, ::11]
     _low_res_data = normalize_matrix(_low_res_data)
-    _img3_header = nib.as_closest_canonical(nib.load(r"project_data\BraTS_Data\BraTS_009\images\FLAIR.nii"))
+    _img3_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/FLAIR.nii"))
     _structural_data = _img3_header.get_fdata()[:, :, 79]
-    _structural_data = normalize_matrix(_structural_data)
+    _structural_data = xp.array(normalize_matrix(_structural_data))
+    _down = spl.AverageDownsampling(_structural_data.shape, (2, 2))
+    _structural_data = _down(_structural_data)
 
-    save_options = {"given_path": r"project_data\BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
-    _op = anic.AnatomicReconstructor(_structural_data, _low_res_data, (11, 11), 0.007, 0.0015, 8000, True, save_options)
-    recon = _op(_ground_truth)
+    # print(_low_res_data.shape, _structural_data.shape)
 
-    plt.imshow(recon, "Grey_r", vmin=0, vmax=_ground_truth)
+    save_options = {"given_path": r"project_data/BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
+    _op = anic.AnatomicReconstructor(_structural_data, (12, 12), 0.007, 0.0015, 10000, True, save_options)
+    _op.given_lambda = sweep_lambda(_ground_truth, _op)
+    _op.given_eta = sweep_eta(_ground_truth, _op)
+    recon = _op(_low_res_data)
+
+    img = plt.imshow(recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
     plt.show()
 
     # fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(20,15))

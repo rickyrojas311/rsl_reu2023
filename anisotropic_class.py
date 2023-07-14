@@ -24,7 +24,7 @@ class AnatomicReconstructor():
     class to facilate anatomic reconstruction, apply on low res data
     """
 
-    def __init__(self, anatomical_data: xp.ndarray, low_res_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
+    def __init__(self, anatomical_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
 
@@ -33,18 +33,18 @@ class AnatomicReconstructor():
         """
         if normalize:
             self._anatomical_data = xp.array(normalize_matrix(anatomical_data))
-            self._low_res_data = xp.array(normalize_matrix(low_res_data))
         else:
             self._anatomical_data = xp.array(anatomical_data)
-            self._low_res_data = xp.array(low_res_data)
 
         self._downsampling_factor = downsampling_factor
         self._given_lambda = given_lambda
         self._given_eta = given_eta
         self._max_iter = max_iter
         self._normalize = normalize
+        self._low_res_ishape = tuple(i // f for i,f in zip(self._anatomical_data.shape, self._downsampling_factor))
 
         self._ground_truth = None
+        self._low_res_data = None
 
         if save_options is not None:
             try:
@@ -179,10 +179,13 @@ class AnatomicReconstructor():
         If saving_options are set then AnatomicReconstructor can pull from
         already constructed images
         """
+        #normalizes input matrix if set
         if self._normalize:
-            self._ground_truth = xp.array(normalize_matrix(iarray))
+            self._low_res_data = xp.array(normalize_matrix(iarray))
         else:
-            self._ground_truth = xp.array(iarray)
+            self._low_res_data = xp.array(iarray)
+        # if self._low_res_data.shape is not self._low_res_ishape:
+        #     raise ValueError(f"low res data is incorrect size. {self._low_res_data.shape} should upscale by {self._downsampling_factor} to {self._anatomical_data.shape}")
         if self.saving:
             filename = self.search_image()
             if filename is not None:
@@ -198,10 +201,10 @@ class AnatomicReconstructor():
         background pixels
         """
         downsampler = spl.AverageDownsampling(
-            self._ground_truth.shape, self._downsampling_factor)
+            self._anatomical_data.shape, self._downsampling_factor)
         # downsampled = downsampler(self._ground_truth)
         downsampled = self._low_res_data
-        gradient_op = sp.linop.FiniteDifference(self._ground_truth.shape)
+        gradient_op = sp.linop.FiniteDifference(self._anatomical_data.shape)
         projection_op = proj.ProjectionOperator(
             gradient_op.oshape, self._anatomical_data, eta=self._given_eta)
         compose_op = sp.linop.Compose([projection_op, gradient_op])
@@ -210,7 +213,7 @@ class AnatomicReconstructor():
         alg = sp.app.LinearLeastSquares(
             downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
         result = alg.run()
-        masked_result = result * (self._ground_truth > 0.0001)
+        masked_result = result * (self._anatomical_data > 0.0001)
         if xp.__name__ == "cupy":
             masked_result = masked_result.get()
         return masked_result
@@ -221,7 +224,7 @@ class AnatomicReconstructor():
         """
         recon_img = nib.Nifti1Image(
             img, self.img_header.affine, self.img_header.header)
-        filename = f"{self._ground_truth.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
+        filename = f"{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
         filename += ".nii"
@@ -233,7 +236,7 @@ class AnatomicReconstructor():
         Checks if an image with the current settings has already been generated. 
         If so it returns the path otherwise it returns None
         """
-        filename = f"{self._ground_truth.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
+        filename = f"{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
         filename += ".nii"
@@ -248,4 +251,6 @@ def normalize_matrix(matrix):
     normalizes inputed matrix so that all of it's values range from 0 - 1
     """
     m_max = matrix.max()
-    return matrix/m_max
+    if m_max != 1.0:
+        return matrix/m_max
+    return matrix
