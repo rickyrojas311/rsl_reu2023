@@ -192,10 +192,10 @@ class AnatomicReconstructor():
             filename = self.search_image()
             if filename is not None:
                 img_header = nib.as_closest_canonical(nib.load(filename))
-                return img_header.get_fdata()
+                return xp.array(img_header.get_fdata())
         reconstruction = self.run_reconstructor()
         self.save_image(reconstruction)
-        return reconstruction
+        return xp.array(reconstruction)
 
     def run_reconstructor(self):
         """

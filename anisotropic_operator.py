@@ -172,6 +172,24 @@ def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper:
                 print(curr, lam + direction * interval, interval)
                 return sweep_lambda_helper(ground_truth, lam + direction * interval, interval, percision, direction, oper, curr, low)
 
+#def lambda_function(x, ground_truth, oper: anic.AnatomicReconstructor):
+    """
+    Sets up the lambda minimizing function
+    """
+    oper.given_lambda = x
+    # import ipdb; ipdb.set_trace()
+    recon = oper(oper.low_res_data)
+    mse = find_mse(ground_truth, recon)
+    print(mse, x)
+    return mse
+
+#def sweep_lambda_helper_new(ground_truth, oper: anic.AnatomicReconstructor, upper):
+    """
+    Helps minimize lambda
+    """
+    options = {"xatol": 1e-2}
+    return minimize_scalar(lambda_function, bounds= (0, upper), args=(ground_truth, oper), method="bounded", options=options)
+
 def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
     """
     Function to sweep lambda values until the lambda that minimizes MSE values is found.
@@ -189,6 +207,7 @@ def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int
         recon = oper(oper.low_res_data)
         curr = find_mse(ground_truth, recon)
         print(curr, lam)
+    # result = sweep_lambda_helper_new(ground_truth, oper, lam)
     result = sweep_lambda_helper(ground_truth, lam - starting_interval, starting_interval, percision, 1, oper, prev, (lam, curr))
     return result
 
@@ -278,68 +297,62 @@ def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, la
 
     return (lambdas, MSEs)
 
-def diff_images(ground_truth, structural_data, saving_options):
+def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, variable):
     """
     Shows the difference between the ground truth and the reconstruction
     """
-    op = anic.AnatomicReconstructor(structural_data, (8,8), 2, 0.0015, 6000, True, saving_options)
-    ground_truth = normalize_matrix(ground_truth)
-    lambdas = [1e-4,1e-3,5e-3,1e-2,1e-1,1]
 
-    recons = xp.zeros((len(lambdas),) + ground_truth.shape)
-    for i, lam in enumerate(lambdas):
-        op.given_lambda = lam
-        image = op(ground_truth) - ground_truth
-        # import ipdb; ipdb.set_trace()
+    recons = xp.zeros((len(variables),) + ground_truth.shape)
+    for i, var in enumerate(variables):
+        if variable == "lambda":
+            oper.given_lambda = var
+        elif variable == "eta":
+            oper.given_eta = var
+        else:
+            raise ValueError(f"Invalid type {variable}")
+        image = oper(oper.low_res_data)
         recons[i,...] = image
 
     vmax = xp.abs(recons).max()
-    # ipdb.set_trace()
 
     fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(20,15))
     for i, recon in enumerate(recons):
-        ax.ravel()[i].imshow(recon, vmin = -vmax, vmax = vmax, cmap = 'seismic')
-        ax.ravel()[i].set_title("lam = " + str(lambdas[i]))
-        ax.ravel()[i].axis("off")
+        diff_recon = recon - ground_truth
+        ax[0][i].imshow(diff_recon.get(), vmin = -vmax, vmax = vmax, cmap = 'seismic')
+        mse=float(find_mse(ground_truth, diff_recon)) * 100
+        ax[0][i].set_title(f"{variable}={variables[i]},mse={round(mse, 5)}")
+        ax[0][i].axis("off")
+        ax[1][i].imshow(recon.get(), vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+        ax[1][i].axis("off")
     fig.show()
-    fig.savefig(r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Reconstructions\Composites\difference_masked.png")
+    fig.savefig(f"project_data/BraTS_Reconstructions/Composites/differences_{variables[0]}to{variables[-1]}.png")
 
 
 if __name__ == "__main__":
-    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
-    _ground_truth = _img1_header.get_fdata()[:, :, 56, 0]
-    _ground_truth = normalize_matrix(_ground_truth)
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
-    _low_res_data = _img2_header.get_fdata()[:, :, 56, 0]
-    _low_res_data = _low_res_data[::11, ::11]
-    _low_res_data = normalize_matrix(_low_res_data)
-    _img3_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2_flair.nii.gz"))
-    _structural_data = _img3_header.get_fdata()[:, :, 56]
-    _structural_data = xp.array(normalize_matrix(_structural_data))
-    # _down = spl.AverageDownsampling(_structural_data.shape, (2, 2))
-    # _structural_data = _down(_structural_data)
+    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/T1.nii"))
+    _ground_truth = _img1_header.get_fdata()[:, :, 78]
+    _ground_truth = xp.array(normalize_matrix(_ground_truth))
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/FLAIR.nii"))
+    _structural_data = _img2_header.get_fdata()[:, :, 78]
+    _structural_data = normalize_matrix(_structural_data)
 
-    # print(_low_res_data.shape, _structural_data.shape)
+    _down = spl.AverageDownsampling(_ground_truth.shape, (8, 8))
+    _low_res_data = _down(_ground_truth)
 
-    save_options = {"given_path": r"project_data/BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
-    _op = anic.AnatomicReconstructor(_structural_data, (11, 11), 0.007, 0.0015, 8000, True, save_options)
-    # _op.low_res_data = _low_res_data
-    # _op.given_lambda = sweep_lambda(_ground_truth, _op)
-    # _op.given_eta = sweep_eta(_ground_truth, _op)
+    save_options = {"given_path": r"project_data/BraTS_Reconstructions", "img_header": _img1_header}
+    given_lambda = 4e-3
+    given_eta = 5e-3
+    _op = anic.AnatomicReconstructor(_structural_data, (8,8), given_lambda, given_eta, 8000, True, save_options)
+    _op.low_res_data = _low_res_data
+    etas = [4e-3, 1e-4, 5e-5]
+    diff_images(_ground_truth, _op, etas, "lambda")
     # _recon = _op(_low_res_data)
+    # print(find_mse(_ground_truth, _recon))
 
-    # img = plt.imshow(_recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
-    # filename = f"{_low_res_data.ndim}D_lambda-{_op.given_lambda}_eta-{_op.given_eta}_iter-{_op.max_iter}"
-    # if _op.normalize:
-    #     filename += "_norm"
-    # filename += ".png"
-    # search_path = pathlib.Path("project_data/BraTS_Noise_Expirements_Reconstructions/Final Build").joinpath(filename)
-    # plt.savefig(search_path)
-    # plt.show()
-
-    # _recon = _op(_low_res_data)
-    # img = plt.imshow(_recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
-    # plt.show()
+    # if xp.__name__ == "cupy":
+    #         _ground_truth = _ground_truth.get()
+    #         _low_res_data = _low_res_data.get()
+    #         _recon = _recon.get()
 
     # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
     # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
@@ -348,13 +361,15 @@ if __name__ == "__main__":
     # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[1].set_title("low res")
     # ax.ravel()[1].axis("off")
-    # ax.ravel()[2].imshow(_structural_data.get(), vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[2].set_title("structure")
     # ax.ravel()[2].axis("off")
     # ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
     # ax.ravel()[3].set_title("Reconstruction")
     # ax.ravel()[3].axis("off")
     # fig.show()
-    # fig.savefig(r"project_data\BraTS_Noise_Expirements_Reconstructions\patient_9_all_data_side_by+reconstruction")
+    # fig.savefig(r"project_data/BraTS_Reconstructions/Composites/78_8by8_manual_sweep_metrics.png")
+
+
 
 
