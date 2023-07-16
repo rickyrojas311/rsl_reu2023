@@ -329,45 +329,45 @@ def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, varia
 
 
 if __name__ == "__main__":
-    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/T1.nii"))
-    _ground_truth = _img1_header.get_fdata()[:, :, 78]
+    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_002/images/T1.nii"))
+    _ground_truth = _img1_header.get_fdata()[:, :, 110]
     _ground_truth = xp.array(normalize_matrix(_ground_truth))
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_009/images/FLAIR.nii"))
-    _structural_data = _img2_header.get_fdata()[:, :, 78]
+    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_002/images/T2.nii"))
+    _structural_data = _img2_header.get_fdata()[:, :, 110]
     _structural_data = normalize_matrix(_structural_data)
 
     _down = spl.AverageDownsampling(_ground_truth.shape, (8, 8))
     _low_res_data = _down(_ground_truth)
 
-    save_options = {"given_path": r"project_data/BraTS_Reconstructions", "img_header": _img1_header}
-    given_lambda = 4e-3
-    given_eta = 5e-3
+    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files", "img_header": _img1_header}
+    given_lambda = 3e-3
+    given_eta = 1.5e-3
     _op = anic.AnatomicReconstructor(_structural_data, (8,8), given_lambda, given_eta, 8000, True, save_options)
-    _op.low_res_data = _low_res_data
-    etas = [4e-3, 1e-4, 5e-5]
-    diff_images(_ground_truth, _op, etas, "lambda")
-    # _recon = _op(_low_res_data)
+    # _op.low_res_data = _low_res_data
+    # etas = [4e-3, 1e-4, 5e-5]
+    # diff_images(_ground_truth, _op, etas, "lambda")
+    _recon = _op(_low_res_data)
     # print(find_mse(_ground_truth, _recon))
 
-    # if xp.__name__ == "cupy":
-    #         _ground_truth = _ground_truth.get()
-    #         _low_res_data = _low_res_data.get()
-    #         _recon = _recon.get()
+    if xp.__name__ == "cupy":
+            _ground_truth = _ground_truth.get()
+            _low_res_data = _low_res_data.get()
+            _recon = _recon.get()
 
-    # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
-    # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[0].set_title("ground truth")
-    # ax.ravel()[0].axis("off")
-    # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[1].set_title("low res")
-    # ax.ravel()[1].axis("off")
-    # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[2].set_title("structure")
-    # ax.ravel()[2].axis("off")
-    # ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[3].set_title("Reconstruction")
-    # ax.ravel()[3].axis("off")
-    # fig.show()
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
+    ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[0].set_title("ground truth")
+    ax.ravel()[0].axis("off")
+    ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[1].set_title("low res")
+    ax.ravel()[1].axis("off")
+    ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[2].set_title("structure")
+    ax.ravel()[2].axis("off")
+    ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[3].set_title("Reconstruction")
+    ax.ravel()[3].axis("off")
+    fig.show()
     # fig.savefig(r"project_data/BraTS_Reconstructions/Composites/78_8by8_manual_sweep_metrics.png")
 
 
