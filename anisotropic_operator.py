@@ -327,48 +327,114 @@ def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, varia
     fig.show()
     fig.savefig(f"project_data/BraTS_Reconstructions/Composites/differences_{variables[0]}to{variables[-1]}.png")
 
+def compare_aquisitions():
+    """
+    Compare which scan produces the best reconstruction
+    """
+    ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
+    ground_truth = ground_header.get_fdata()[:, :, 56, 0]
+    ground_truth = xp.array(normalize_matrix(ground_truth))
+    T2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2.nii.gz"))
+    structural_data = T2_header.get_fdata()[:, :, 56]
+    structural_data = normalize_matrix(structural_data)
 
-if __name__ == "__main__":
-    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_002/images/T1.nii"))
-    _ground_truth = _img1_header.get_fdata()[:, :, 110]
-    _ground_truth = xp.array(normalize_matrix(_ground_truth))
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/BraTS_002/images/T2.nii"))
-    _structural_data = _img2_header.get_fdata()[:, :, 110]
-    _structural_data = normalize_matrix(_structural_data)
+    down = spl.AverageDownsampling(ground_truth.shape, (11, 11))
+    low_res_data = down(ground_truth)
 
-    _down = spl.AverageDownsampling(_ground_truth.shape, (8, 8))
-    _low_res_data = _down(_ground_truth)
-
-    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files", "img_header": _img1_header}
-    given_lambda = 3e-3
-    given_eta = 1.5e-3
-    _op = anic.AnatomicReconstructor(_structural_data, (8,8), given_lambda, given_eta, 8000, True, save_options)
+    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files", "img_name": "DMI_009_T2_56", "img_header": ground_header}
+    given_lambda = 6e-3
+    given_eta = 4e-3
+    op = anic.AnatomicReconstructor(structural_data, (11,11), given_lambda, given_eta, 8000, True, save_options)
     # _op.low_res_data = _low_res_data
-    # etas = [4e-3, 1e-4, 5e-5]
-    # diff_images(_ground_truth, _op, etas, "lambda")
-    _recon = _op(_low_res_data)
+    # variables = [9e-3, 6e-3, 4e-3]
+    # diff_images(_ground_truth, _op, variables, "lambda")
+    recon_T2 = op(low_res_data)
     # print(find_mse(_ground_truth, _recon))
 
+
+    FLAIR_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2_flair.nii.gz"))
+    FLAIR_data = FLAIR_header.get_fdata()[:, :, 56]
+    FLAIR_data = normalize_matrix(FLAIR_data)
+    op.anatomical_data =FLAIR_data
+    op.img_name = "DMI_009_FLAIR_56"
+    op.img_header = FLAIR_header
+    recon_FLAIR = op(low_res_data)
+
+    T1c_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t1.nii.gz"))
+    T1c_data = T1c_header.get_fdata()[:, :, 56]
+    T1c_data = normalize_matrix(T1c_data)
+    op.anatomical_data =T1c_data
+    op.img_name = "DMI_009_T1_56"
+    op.img_header = T1c_header
+    recon_T1c = op(low_res_data)
+
     if xp.__name__ == "cupy":
-            _ground_truth = _ground_truth.get()
-            _low_res_data = _low_res_data.get()
-            _recon = _recon.get()
+            ground_truth = ground_truth.get()
+            low_res_data = low_res_data.get()
+            recon_T2 = recon_T2.get()
+            recon_FLAIR = recon_FLAIR.get()
+            recon_T1c = recon_T1c.get()
 
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
-    ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[0].imshow(ground_truth, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
     ax.ravel()[0].set_title("ground truth")
     ax.ravel()[0].axis("off")
-    ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[1].set_title("low res")
+    ax.ravel()[1].imshow(recon_FLAIR, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[1].set_title("FLAIR")
     ax.ravel()[1].axis("off")
-    ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[2].set_title("structure")
+    ax.ravel()[2].imshow(recon_T1c, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[2].set_title("T1")
     ax.ravel()[2].axis("off")
-    ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[3].set_title("Reconstruction")
+    ax.ravel()[3].imshow(recon_T2, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[3].set_title("T2")
     ax.ravel()[3].axis("off")
     fig.show()
-    # fig.savefig(r"project_data/BraTS_Reconstructions/Composites/78_8by8_manual_sweep_metrics.png")
+
+if __name__ == "__main__":
+    # compare_aquisitions()
+    _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
+    _ground_truth = _ground_header.get_fdata()[:, :, 56, 0]
+    _ground_truth = xp.array(normalize_matrix(_ground_truth))
+    _structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2.nii.gz"))
+    _structural_data = _structural_header.get_fdata()[:, :, 56]
+    _structural_data = normalize_matrix(_structural_data)
+
+    _down = spl.AverageDownsampling(_ground_truth.shape, (11, 11))
+    _low_res_data = _down(_ground_truth)
+
+    # _low_res_data_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
+    # _low_res_data = _low_res_data_header.get_fdata()[:,:, 56, 0]
+
+    _save_options = {"given_path": "project_data/BraTS_Noise_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI_009_T2_56_D11", "img_header": _ground_header}
+    _given_lambda = 6e-3
+    _given_eta = 4e-3
+    _op = anic.AnatomicReconstructor(_structural_data, (11,11), _given_lambda, _given_eta, 8000, True, _save_options)
+    _op.low_res_data = _low_res_data
+    variables = [6e-3, 4e-3, 1e-3]
+    diff_images(_ground_truth, _op, variables, "eta")
+    _recon = _op(_low_res_data)
+    # # print(find_mse(_ground_truth, _recon))
+
+    # if xp.__name__ == "cupy":
+    #         _ground_truth = _ground_truth.get()
+    #         _low_res_data = _low_res_data.get()
+    #         _recon = _recon.get()
+
+    # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
+    # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[0].set_title("ground truth")
+    # ax.ravel()[0].axis("off")
+    # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[1].set_title("low res")
+    # ax.ravel()[1].axis("off")
+    # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[2].set_title("structure")
+    # ax.ravel()[2].axis("off")
+    # ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    # ax.ravel()[3].set_title(f"Reconstruction_{_given_lambda}_{_given_eta}")
+    # ax.ravel()[3].axis("off")
+    # fig.show()
+    # fig.savefig(r"project_data/BraTS_Noise_Experiments_Reconstructions/Composites/DMI_brain_optimal.png")
 
 
 

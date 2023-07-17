@@ -29,7 +29,10 @@ class AnatomicReconstructor():
         Pass in needed information to set up reconstruction
 
         Input save options to save images to a folder
-        save_options={"given_path":, "img_header":}
+        save_options={"given_path":, "img_name":, "img_header":}
+        given_path is the path to save the image to
+        img_name is a prefix to the image settings saved in the filename
+        img_header is the Nifity header file that will be saved with the image
         """
         if normalize:
             self._anatomical_data = xp.array(normalize_matrix(anatomical_data))
@@ -49,6 +52,7 @@ class AnatomicReconstructor():
             try:
                 self._path = pathlib.Path(save_options["given_path"])
                 self._img_header = save_options["img_header"]
+                self._img_name = save_options["img_name"]
             except KeyError as mal:
                 raise ValueError(
                     f"malformed save_options input {save_options}, image failed to save") from mal
@@ -129,6 +133,17 @@ class AnatomicReconstructor():
         except NameError as err:
             raise ValueError(
                 "saving_options were not set so no header is stored") from err
+        
+    @property
+    def img_name(self):
+        """
+        Returns the name of the inputed image without the settings
+        """
+        try:
+            return self._img_name
+        except NameError as err:
+            raise ValueError(
+                "saving_options were not set so no img_name is saved") from err
 
     @anatomical_data.setter
     def anatomical_data(self, value: xp.ndarray):
@@ -173,6 +188,10 @@ class AnatomicReconstructor():
     @img_header.setter
     def img_header(self, value):
         self._img_header = value
+
+    @img_name.setter
+    def img_name(self, value):
+        self._img_name = value
 
     def __call__(self, iarray) -> xp.ndarray:
         """
@@ -226,7 +245,7 @@ class AnatomicReconstructor():
         """
         recon_img = nib.Nifti1Image(
             img, self.img_header.affine, self.img_header.header)
-        filename = f"{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
+        filename = f"{self._img_name}_{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
         filename += ".nii"
@@ -238,7 +257,7 @@ class AnatomicReconstructor():
         Checks if an image with the current settings has already been generated. 
         If so it returns the path otherwise it returns None
         """
-        filename = f"{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
+        filename = f"{self._img_name}_{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
         if self.normalize:
             filename += "_norm"
         filename += ".nii"
