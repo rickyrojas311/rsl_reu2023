@@ -24,7 +24,7 @@ class AnatomicReconstructor():
     class to facilate anatomic reconstruction, apply on low res data
     """
 
-    def __init__(self, anatomical_data: xp.ndarray, downsampling_factor: tuple[int], given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
+    def __init__(self, anatomical_data: xp.ndarray, given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
 
@@ -39,14 +39,13 @@ class AnatomicReconstructor():
         else:
             self._anatomical_data = xp.array(anatomical_data)
 
-        self._downsampling_factor = downsampling_factor
         self._given_lambda = given_lambda
         self._given_eta = given_eta
         self._max_iter = max_iter
         self._normalize = normalize
-        self._low_res_ishape = tuple(i // f for i,f in zip(self._anatomical_data.shape, self._downsampling_factor))
 
         self._low_res_data = None
+        self._downsampling_factor = None
 
         if save_options is not None:
             try:
@@ -82,7 +81,11 @@ class AnatomicReconstructor():
         """
         return set downsampling_factor
         """
-        return self._downsampling_factor
+        if self._downsampling_factor is not None:
+            return self._downsampling_factor
+        raise ValueError(
+            "low_res_data must be inputed into operator before the downsampling factor is calculated and called"
+            )
 
     @property
     def given_lambda(self):
@@ -165,10 +168,6 @@ class AnatomicReconstructor():
         else:
             self._low_res_data = xp.array(value)
 
-    @downsampling_factor.setter
-    def downsampling_factor(self, value: tuple[int]):
-        self._downsampling_factor = value
-
     @given_lambda.setter
     def given_lambda(self, value: float):
         self._given_lambda = value
@@ -205,8 +204,11 @@ class AnatomicReconstructor():
             self._low_res_data = xp.array(normalize_matrix(iarray))
         else:
             self._low_res_data = xp.array(iarray)
-        # if self._low_res_data.shape is not self._low_res_ishape:
-        #     raise ValueError(f"low res data is incorrect size. {self._low_res_data.shape} should upscale by {self._downsampling_factor} to {self._anatomical_data.shape}")
+        #Checks if low_res_data shape can be upscaled to the same size as the anatomical_data
+        if all((elem_1 % elem_2) == 0 for elem_1, elem_2 in zip(self._anatomical_data.shape, self._low_res_data.shape)):
+            self._downsampling_factor = tuple(elem_1 // elem_2 for elem_1, elem_2 in zip(self._anatomical_data.shape, self._low_res_data.shape))
+        else:
+            raise ValueError(f"low res data of shape {self._low_res_data.shape} is not evenly scalable to {self._anatomical_data.shape}")
         if self.saving:
             filename = self.search_image()
             if filename is not None:

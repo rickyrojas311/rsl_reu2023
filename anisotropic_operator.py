@@ -268,6 +268,49 @@ def sweep_eta(ground_truth, oper: anic.AnatomicReconstructor, min_eta: int = 0, 
     result = sweep_eta_helper(ground_truth, eta - starting_interval, starting_interval, percision, 1, oper, prev, (eta, curr))
     return result
 
+def coarse_sweep(variable: str, oper: anic.AnatomicReconstructor, ground_truth):
+    """
+    Coarsely sweeps for best eta/lambda value out of a range of preset values
+    """
+    values =  [6e-2, 4.5e-2, 3e-2, 1.5e-2, 1e-2, 9e-3, 6e-3, 3e-3, 1e-3, 9e-4, 5e-4, 1e-4, 5e-5, 1e-5]
+    index = 7
+    if variable == "lambda":
+        oper.given_lambda = values[index]
+    else:
+        oper.given_eta = values[index]
+    curr = find_mse(ground_truth, oper(oper.low_res_data))
+    print (values[index], curr)
+    index += 1
+    if variable == "lambda":
+        oper.given_lambda = values[index]
+    else:
+        oper.given_eta = values[index]
+    nextl = find_mse(ground_truth, oper(oper.low_res_data))
+    print (values[index], nextl)
+    if curr < nextl:
+        index -= 2
+        direction = -1
+        if variable == "lambda":
+            oper.given_lambda = values[index]
+        else:
+            oper.given_eta = values[index]
+        nextl = find_mse(ground_truth, oper(oper.low_res_data))
+        print (values[index], nextl)
+    else: direction = 1
+    while nextl < curr:
+        curr = nextl
+        index += direction
+        try:
+            if variable == "lambda":
+                oper.given_lambda = values[index]
+            else:
+                oper.given_eta = values[index]
+        except IndexError as err:
+            raise IndexError(f"sweep reached end of values, {index} out of range") from err
+        nextl = find_mse(ground_truth, oper(oper.low_res_data))
+        print (values[index], nextl)
+    return values[index - direction]
+
 def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, lambda_num, max_iterations, saving_options):
     """
     Plots MSE score by lamda value
@@ -301,7 +344,7 @@ def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, varia
     """
     Shows the difference between the ground truth and the reconstruction
     """
-
+    # import ipdb; ipdb.set_trace()
     recons = xp.zeros((len(variables),) + ground_truth.shape)
     for i, var in enumerate(variables):
         if variable == "lambda":
@@ -318,11 +361,11 @@ def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, varia
     fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(20,15))
     for i, recon in enumerate(recons):
         diff_recon = recon - ground_truth
-        ax[0][i].imshow(diff_recon.get(), vmin = -vmax, vmax = vmax, cmap = 'seismic')
-        mse=float(find_mse(ground_truth, diff_recon)) * 100
+        ax[0][i].imshow(diff_recon.get()[:,:, 56], vmin = -vmax, vmax = vmax, cmap = 'seismic')
+        mse=float(find_mse(ground_truth, diff_recon))
         ax[0][i].set_title(f"{variable}={variables[i]},mse={round(mse, 5)}")
         ax[0][i].axis("off")
-        ax[1][i].imshow(recon.get(), vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+        ax[1][i].imshow(recon.get()[:, :, 56], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
         ax[1][i].axis("off")
     fig.show()
     fig.savefig(f"project_data/BraTS_Reconstructions/Composites/differences_{variables[0]}to{variables[-1]}.png")
@@ -390,50 +433,230 @@ def compare_aquisitions():
     ax.ravel()[3].axis("off")
     fig.show()
 
+def compare_downsamplings():
+    """
+    Compare the resolutions of different downsampling resolutions
+    """
+    ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi_gt.nii.gz"))
+    ground_truth = ground_header.get_fdata()[:, :, 56, 0]
+    ground_truth = xp.array(normalize_matrix(ground_truth))
+    structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2.nii.gz"))
+    structural_data = structural_header.get_fdata()[:, :, 56]
+    structural_data = normalize_matrix(structural_data)
+
+    DS2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS2_data = DS2_header.get_fdata()[:,:, 56, 0][::2, ::2]
+    DS2_data = normalize_matrix(DS2_data)
+
+    save_options = {"given_path": "project_data/BraTS_DS_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI9_56DS2_T2", "img_header": ground_header}
+    given_lambda = 6e-3
+    given_eta = 2e-2
+    op = anic.AnatomicReconstructor(structural_data, given_lambda, given_eta, 20000, True, save_options)
+    op.given_lambda = 1e-2
+    op.given_eta = 1e-2
+    recon_DS2 = op(DS2_data)
+
+
+    DS5_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_5_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS5_data = DS5_header.get_fdata()[:, :, 56, 0][::5, ::5]
+    DS5_data = normalize_matrix(DS5_data)
+    op.img_name = "DMI9_56DS5_T2"
+    op.given_lambda = 6e-3
+    op.given_eta = 9e-3
+    recon_DS5 = op(DS5_data)
+
+    DS10_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_10_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS10_data = DS10_header.get_fdata()[:, :, 56, 0][::10, ::10]
+    DS10_data = normalize_matrix(DS10_data)
+    op.img_name = "DMI9_56DS10_T2"
+    op.given_lambda = 6e-3
+    op.given_eta = 1e-3
+    recon_DS10 = op(DS10_data)
+
+    DS11_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS11_data = DS11_header.get_fdata()[:, :, 56, 0][::11, ::11]
+    DS11_data = normalize_matrix(DS11_data)
+    op.img_name = "DMI9_56DS11_T2"
+    op.given_lambda = 6e-3
+    op.given_eta = 1e-3
+    recon_DS11 = op(DS11_data)
+
+    if xp.__name__ == "cupy":
+            ground_truth = ground_truth.get()
+            recon_DS2 = recon_DS2.get()
+            recon_DS5 = recon_DS5.get()
+            recon_DS10 = recon_DS10.get()
+            recon_DS11 = recon_DS11.get()
+
+    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(20,15))
+    ax.ravel()[0].imshow(ground_truth, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[0].set_title("gt")
+    ax.ravel()[0].axis("off")
+    ax.ravel()[1].imshow(DS2_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[1].set_title("DS2")
+    ax.ravel()[1].axis("off")
+    ax.ravel()[2].imshow(DS5_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[2].set_title("DS5")
+    ax.ravel()[2].axis("off")
+    ax.ravel()[3].imshow(DS10_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[3].set_title("DS10")
+    ax.ravel()[3].axis("off")
+    ax.ravel()[4].imshow(DS11_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[4].set_title("DS11")
+    ax.ravel()[4].axis("off")
+    ax.ravel()[5].imshow(structural_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[5].set_title("struct")
+    ax.ravel()[5].axis("off")
+    ax.ravel()[6].imshow(recon_DS2, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[6].set_title("")
+    ax.ravel()[6].axis("off")
+    ax.ravel()[7].imshow(recon_DS5, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[7].set_title("")
+    ax.ravel()[7].axis("off")
+    ax.ravel()[8].imshow(recon_DS10, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[8].set_title("")
+    ax.ravel()[8].axis("off")
+    ax.ravel()[9].imshow(recon_DS11, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[9].set_title("")
+    ax.ravel()[9].axis("off")
+    fig.tight_layout()
+    fig.show()
+
+def compare_3D_downsamplings():
+    """
+    Compare the resolutions of different downsampling resolutions
+    """
+    ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi_gt.nii.gz"))
+    ground_truth = ground_header.get_fdata()[:, :, 56, 0]
+    ground_truth = xp.array(normalize_matrix(ground_truth))
+    structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t1.nii.gz"))
+    structural_data = structural_header.get_fdata()
+    structural_data = normalize_matrix(structural_data)
+
+    DS2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS2_data = DS2_header.get_fdata()[:, :, :, 0][::2, ::2, ::2]
+    DS2_data = normalize_matrix(DS2_data)
+
+    save_options = {"given_path": "project_data/BraTS_DS_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI9_56DS2_T1", "img_header": ground_header}
+    given_lambda = 9e-3
+    given_eta = 2e-2
+    op = anic.AnatomicReconstructor(structural_data, given_lambda, given_eta, 20000, True, save_options)
+    op.given_lambda = 1e-2
+    op.given_eta = 7e-3
+    recon_DS2 = op(DS2_data)
+
+
+    DS5_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_5_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS5_data = DS5_header.get_fdata()[:, :, :, 0][::5, ::5, ::5]
+    DS5_data = normalize_matrix(DS5_data)
+    op.img_name = "DMI9_56DS5_T1"
+    op.given_lambda = 6e-3
+    op.given_eta = 4e-4
+    recon_DS5 = op(DS5_data)
+
+    DS10_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_10_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS10_data = DS10_header.get_fdata()[:, :, :, 0][::10, ::10, ::10]
+    DS10_data = normalize_matrix(DS10_data)
+    op.img_name = "DMI9_56DS10_T1"
+    op.given_lambda = 6e-3
+    op.given_eta = 1e-3
+    recon_DS10 = op(DS10_data)
+
+    DS11_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS11_data = DS11_header.get_fdata()[:, :, :, 0][::11, ::11, ::11]
+    DS11_data = normalize_matrix(DS11_data)
+    op.img_name = "DMI9_56DS11_T1"
+    op.given_lambda = 6e-3
+    op.given_eta = 1e-3
+    recon_DS11 = op(DS11_data)
+
+    if xp.__name__ == "cupy":
+            ground_truth = ground_truth.get()
+            structural_data = structural_data[:, :, 56]
+            recon_DS2 = recon_DS2.get()[:, :, 56]
+            recon_DS5 = recon_DS5.get()[:, :, 56]
+            recon_DS10 = recon_DS10.get()[:, :, 56]
+            recon_DS11 = recon_DS11.get()[:, :, 56]
+
+    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(20,15))
+    ax.ravel()[0].imshow(ground_truth, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[0].set_title("gt")
+    ax.ravel()[0].axis("off")
+    ax.ravel()[1].imshow(DS2_data[:, :, 28], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[1].set_title("DS2")
+    ax.ravel()[1].axis("off")
+    ax.ravel()[2].imshow(DS5_data[:, :, 11], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[2].set_title("DS5")
+    ax.ravel()[2].axis("off")
+    ax.ravel()[3].imshow(DS10_data[:, :, 5], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[3].set_title("DS10")
+    ax.ravel()[3].axis("off")
+    ax.ravel()[4].imshow(DS11_data[:, :, 5], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[4].set_title("DS11")
+    ax.ravel()[4].axis("off")
+    ax.ravel()[5].imshow(structural_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[5].set_title("struct")
+    ax.ravel()[5].axis("off")
+    ax.ravel()[6].imshow(recon_DS2, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[6].set_title("")
+    ax.ravel()[6].axis("off")
+    ax.ravel()[7].imshow(recon_DS5, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[7].set_title("")
+    ax.ravel()[7].axis("off")
+    ax.ravel()[8].imshow(recon_DS10, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[8].set_title("")
+    ax.ravel()[8].axis("off")
+    ax.ravel()[9].imshow(recon_DS11, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[9].set_title("")
+    ax.ravel()[9].axis("off")
+    fig.tight_layout()
+    fig.show()
+
+
 if __name__ == "__main__":
-    # compare_aquisitions()
-    _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
-    _ground_truth = _ground_header.get_fdata()[:, :, 56, 0]
+    # compare_3D_downsamplings()
+    # # compare_aquisitions()
+    _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi_gt.nii.gz"))
+    _ground_truth = _ground_header.get_fdata()[:, :, :, 0]
     _ground_truth = xp.array(normalize_matrix(_ground_truth))
-    _structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2.nii.gz"))
-    _structural_data = _structural_header.get_fdata()[:, :, 56]
+    _structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2_flair.nii.gz"))
+    _structural_data = _structural_header.get_fdata()
     _structural_data = normalize_matrix(_structural_data)
 
-    _down = spl.AverageDownsampling(_ground_truth.shape, (11, 11))
-    _low_res_data = _down(_ground_truth)
+    _low_res_data_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    _low_res_data = _low_res_data_header.get_fdata()[:, :, :, 0][::11, ::11, ::11]
+    _low_res_data = normalize_matrix(_low_res_data)
 
-    # _low_res_data_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
-    # _low_res_data = _low_res_data_header.get_fdata()[:,:, 56, 0]
 
-    _save_options = {"given_path": "project_data/BraTS_Noise_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI_009_T2_56_D11", "img_header": _ground_header}
+    _save_options = {"given_path": "project_data/BraTS_DS_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI9_56DS11_FLAIR", "img_header": _ground_header}
     _given_lambda = 6e-3
-    _given_eta = 4e-3
-    _op = anic.AnatomicReconstructor(_structural_data, (11,11), _given_lambda, _given_eta, 8000, True, _save_options)
+    _given_eta = 1e-3
+    _op = anic.AnatomicReconstructor(_structural_data, _given_lambda, _given_eta, 20000, True, _save_options)
     _op.low_res_data = _low_res_data
-    variables = [6e-3, 4e-3, 1e-3]
-    diff_images(_ground_truth, _op, variables, "eta")
+    variables = [1e-3, 5e-4, 1e-4]
+    diff_images(_ground_truth, _op, variables, "lambda")
     _recon = _op(_low_res_data)
     # # print(find_mse(_ground_truth, _recon))
 
-    # if xp.__name__ == "cupy":
-    #         _ground_truth = _ground_truth.get()
-    #         _low_res_data = _low_res_data.get()
-    #         _recon = _recon.get()
+    if xp.__name__ == "cupy":
+            _ground_truth = _ground_truth.get()[:, :, 56]
+            # _low_res_data = _low_res_data.get()
+            _recon = _recon.get()[:,:,56]
 
-    # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
-    # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[0].set_title("ground truth")
-    # ax.ravel()[0].axis("off")
-    # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[1].set_title("low res")
-    # ax.ravel()[1].axis("off")
-    # ax.ravel()[2].imshow(_structural_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[2].set_title("structure")
-    # ax.ravel()[2].axis("off")
-    # ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[3].set_title(f"Reconstruction_{_given_lambda}_{_given_eta}")
-    # ax.ravel()[3].axis("off")
-    # fig.show()
+    fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
+    ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[0].set_title("ground truth")
+    ax.ravel()[0].axis("off")
+    ax.ravel()[1].imshow(_low_res_data[:,:, 5], vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[1].set_title("low res")
+    ax.ravel()[1].axis("off")
+    ax.ravel()[2].imshow(_structural_data[:, :, 56], vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[2].set_title("structure")
+    ax.ravel()[2].axis("off")
+    ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[3].set_title(f"Reconstruction_{_op.given_lambda}_{_op.given_eta}")
+    ax.ravel()[3].axis("off")
+    fig.show()
     # fig.savefig(r"project_data/BraTS_Noise_Experiments_Reconstructions/Composites/DMI_brain_optimal.png")
 
 
