@@ -347,7 +347,7 @@ def compare_3D_downsamplings():
 
 
 if __name__ == "__main__":
-    compare_3D_downsamplings()
+    # compare_3D_downsamplings()
     # compare_aquisitions()
     # _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi_gt.nii.gz"))
     # _ground_truth = _ground_header.get_fdata()[:, :, :, 0]
