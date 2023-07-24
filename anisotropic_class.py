@@ -6,6 +6,7 @@ Setters allow for dynamic setting
 from __future__ import annotations
 from typing import Union
 import pathlib
+import math
 
 try:
     import cupy as xp
@@ -207,7 +208,8 @@ class AnatomicReconstructor():
         if all((elem_1 % elem_2) == 0 for elem_1, elem_2 in zip(self._anatomical_data.shape, self._low_res_data.shape)):
             self._downsampling_factor = tuple(elem_1 // elem_2 for elem_1, elem_2 in zip(self._anatomical_data.shape, self._low_res_data.shape))
         else:
-            raise ValueError(f"low res data of shape {self._low_res_data.shape} is not evenly scalable to {self._anatomical_data.shape}")
+            self._anatomical_data = pad_array(self._anatomical_data, self._low_res_data.shape)
+            self._downsampling_factor = tuple(elem_1 // elem_2 for elem_1, elem_2 in zip(self._anatomical_data.shape, self._low_res_data.shape))
         if self.saving:
             filename = self.search_image()
             if filename is not None:
@@ -224,7 +226,6 @@ class AnatomicReconstructor():
         """
         downsampler = spl.AverageDownsampling(
             self._anatomical_data.shape, self._downsampling_factor)
-        # downsampled = downsampler(self._ground_truth)
         downsampled = self._low_res_data
         gradient_op = sp.linop.FiniteDifference(self._anatomical_data.shape)
         projection_op = proj.ProjectionOperator(
@@ -276,3 +277,14 @@ def normalize_matrix(matrix):
     if m_max != 1.0:
         return matrix/m_max
     return matrix
+
+def pad_array(matrix: xp.ndarray, input_shape: tuple[int]):
+    """
+    pads the inputed matrix with zeros so that it can be divided evenly by
+    the inputed factor
+    """
+    #Calculates how many rows/columns of zeros need to be added to properly pad the matrix
+    elem_pad = tuple(elem_2 - (elem_1 % elem_2) for elem_1, elem_2 in zip(matrix.shape, input_shape))
+    #Splits the padding evenly around the original matrix so that the image stays in the middle
+    pad_parameters = tuple((elem//2, math.ceil(elem/2)) for elem in elem_pad)
+    return np.pad(matrix, pad_parameters, "constant")
