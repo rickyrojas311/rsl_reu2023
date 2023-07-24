@@ -23,7 +23,6 @@ class AnatomicReconstructor():
     """
     class to facilate anatomic reconstruction, apply on low res data
     """
-
     def __init__(self, anatomical_data: xp.ndarray, given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
