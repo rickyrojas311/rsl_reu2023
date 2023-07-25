@@ -100,4 +100,4 @@ def display_DMI_res():
     fig.show()
 
 if __name__ == "__main__":
-     display_DMI_res()
+    display_DMI_res()
