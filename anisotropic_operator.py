@@ -3,7 +3,6 @@ Testing enviroment for anisotropic_operator_subclass
 """
 from __future__ import annotations
 import math
-import pathlib
 
 try:
     import cupy as xp
@@ -12,10 +11,8 @@ except ImportError:
 import sigpy as sp
 import nibabel as nib
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize_scalar
 
 import downsampling_subclass as spl
-import projection_operator_subclass as proj
 import anisotropic_class as anic
 
 def is_transpose(input_op: sp.linop.Linop, ishape: tuple[int], oshape: tuple[int]):
@@ -44,272 +41,6 @@ def normalize_matrix(matrix):
     """
     m_max = matrix.max()
     return matrix/m_max
-
-def produce_images():
-    """
-    Produces images
-    """
-    img_header = nib.as_closest_canonical(nib.load(r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Data\BraTS_002\images\T1.nii"))
-    ground_truth = img_header.get_fdata()[:, :, 100]
-    img2_header = nib.as_closest_canonical(nib.load(r"C:\Users\ricky\OneDrive\Desktop\RSL REU\rsl_reu2023\project_data\BraTS_Data\BraTS_002\images\T2.nii"))
-    structural_data = img2_header.get_fdata()[:, :, 100]
-    A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
-    y = A(ground_truth)
-    G = sp.linop.FiniteDifference(ground_truth.shape)
-    P = proj.ProjectionOperator(G.oshape, structural_data)
-    op = sp.linop.Compose([P,G])
-
-    lambdas = [0, 1, 2, 3, 4, 16]
-
-    recons = xp.zeros((len(lambdas),) + tuple(G.ishape))
-    for i, lam in enumerate(lambdas):
-        gproxy = sp.prox.L1Reg(op.oshape, lam)
-        alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=6000)
-        recons[i,...] = alg.run()
-
-
-    fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(20,15))
-    for i, recon in enumerate(recons):
-        ax.ravel()[i].imshow(recon, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-        ax.ravel()[i].set_title("lam = " + str(lambdas[i]))
-        ax.ravel()[i].axis("off")
-    fig.show()
-
-    """
-    Sweeps the lamda value of linearleastsquares to find best result.
-
-    min_lambda is the mininum lambda sweeped
-    starting_interval is the interval sweeped every iteration, best if 2^n.
-    max_iterations is the number of iterations ran by Linear Least Squares
-    percision is the acceptable distance from the optimal lambda, 0 means the exact lambda.
-    """
-    #Sets up operator for image reconstruction
-    A = spl.AverageDownsampling(ground_truth.shape, (8, 8))
-    y = A(ground_truth)
-    G = sp.linop.FiniteDifference(ground_truth.shape)
-    P = proj.ProjectionOperator(G.oshape, structural_data, eta=eta)
-    op = sp.linop.Compose([P,G])
-
-    #Initalizes kwargs and first MSE
-    lam = low_lam = min_lambda
-    interval = starting_interval
-    gproxy = sp.prox.L1Reg(op.oshape, lam)
-    alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-    prev = curr = low = find_mse(ground_truth, alg.run())
-    max_search = True
-    lambdas = []
-    lambdas.append((lam, interval, prev))
-    lam += interval
-
-
-    while interval > percision:
-        #Finds MSE for current lam
-        gproxy = sp.prox.L1Reg(op.oshape, lam)
-        alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-        x = alg.run()
-        next = find_mse(ground_truth, x)
-        if next < low:
-            low = next
-            low_lam = lam
-        lambdas.append((lam, interval, max_search, next))
-        #Only runs when upperbound not yet determined
-        if max_search and next < curr:
-            lam += interval
-            prev = curr
-            curr = next
-        #Runs once to start search of log(N)
-        elif max_search:
-            interval //= 2
-            if prev < next and (lam - interval * 3) > 0:
-                lam -= interval * 3
-            else:
-                lam -= interval
-                prev = curr
-                curr = next
-            max_search = False
-        #Searches for min MSE in log(N)
-        else:
-            interval //= 2
-            if prev < curr:
-                lam -= interval
-                curr = next
-            else: 
-                lam += interval
-                prev = next
-    return (low_lam, low, x, lambdas)
-
-def sweep_lambda_helper(ground_truth, lam, interval, percision, direction, oper: anic.AnatomicReconstructor, prev: float, low: tuple[float]) -> tuple[float, xp.array]:
-    """
-    Recursive helper for the sweep lambda function
-    """
-    if interval <= percision:
-        oper.given_lambda = lam
-        return low[0]
-    else:
-        interval /= 2
-        oper.given_lambda = lam + direction * interval
-        recon = oper(oper.low_res_data)
-        curr = find_mse(ground_truth, recon)
-        print(curr, oper.given_lambda, interval)
-        if curr < low[1]:
-            low = (oper.given_lambda, curr)
-        if curr < prev:
-            return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, direction, oper, curr, low)
-        else:
-            oper.given_lambda = lam - direction * interval
-            recon = oper(oper.low_res_data)
-            temp = find_mse(ground_truth, recon)
-            if temp < low[1]:
-                low = (oper.given_lambda, temp)
-            if temp < curr:
-                if temp < prev:
-                    print(temp, oper.given_lambda, interval)
-                    return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, -direction, oper, temp, low)
-                else:
-                    print(temp, oper.given_lambda, interval)
-                    return sweep_lambda_helper(ground_truth, oper.given_lambda, interval, percision, direction, oper, temp, low)
-            else:
-                print(curr, lam + direction * interval, interval)
-                return sweep_lambda_helper(ground_truth, lam + direction * interval, interval, percision, direction, oper, curr, low)
-
-#def lambda_function(x, ground_truth, oper: anic.AnatomicReconstructor):
-    """
-    Sets up the lambda minimizing function
-    """
-    oper.given_lambda = x
-    # import ipdb; ipdb.set_trace()
-    recon = oper(oper.low_res_data)
-    mse = find_mse(ground_truth, recon)
-    print(mse, x)
-    return mse
-
-#def sweep_lambda_helper_new(ground_truth, oper: anic.AnatomicReconstructor, upper):
-    """
-    Helps minimize lambda
-    """
-    options = {"xatol": 1e-2}
-    return minimize_scalar(lambda_function, bounds= (0, upper), args=(ground_truth, oper), method="bounded", options=options)
-
-def sweep_lambda(ground_truth, oper: anic.AnatomicReconstructor, min_lambda: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
-    """
-    Function to sweep lambda values until the lambda that minimizes MSE values is found.
-    Starts by sweeping to find the upperbound then calls the helper function to search the inner bounds
-    """
-    if oper.normalize:
-        ground_truth = normalize_matrix(ground_truth)
-    lam = min_lambda - starting_interval
-    prev = None
-    curr = None
-    while prev is None or prev > curr:
-        prev = curr
-        lam += starting_interval
-        oper.given_lambda = lam
-        recon = oper(oper.low_res_data)
-        curr = find_mse(ground_truth, recon)
-        print(curr, lam)
-    # result = sweep_lambda_helper_new(ground_truth, oper, lam)
-    result = sweep_lambda_helper(ground_truth, lam - starting_interval, starting_interval, percision, 1, oper, prev, (lam, curr))
-    return result
-
-def sweep_eta_helper(ground_truth, eta, interval, percision, direction, oper: anic.AnatomicReconstructor, prev: float, low: tuple[float]) -> tuple[float, xp.array]:
-    """
-    Recursive helper for the sweep eta function
-    """
-    if interval <= percision:
-        oper.given_eta = eta
-        return low[0]
-    else:
-        interval /= 2
-        oper.given_eta = eta + direction * interval
-        recon = oper(oper.low_res_data)
-        curr = find_mse(ground_truth, recon)
-        print(curr, oper.given_eta, interval)
-        if curr < low[1]:
-            low = (oper.given_eta, curr)
-        if curr < prev:
-            return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, direction, oper, curr, low)
-        else:
-            oper.given_eta = eta - direction * interval
-            recon = oper(oper.low_res_data)
-            temp = find_mse(ground_truth, recon)
-            if temp < low[1]:
-                low = (oper.given_eta, temp)
-            if temp < curr:
-                if temp < prev:
-                    print(temp, oper.given_eta, interval)
-                    return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, -direction, oper, temp, low)
-                else:
-                    print(temp, oper.given_eta, interval)
-                    return sweep_eta_helper(ground_truth, oper.given_eta, interval, percision, direction, oper, temp, low)
-            else:
-                print(curr, eta + direction * interval, interval)
-                return sweep_eta_helper(ground_truth, eta + direction * interval, interval, percision, direction, oper, curr, low)
-
-def sweep_eta(ground_truth, oper: anic.AnatomicReconstructor, min_eta: int = 0, starting_interval: int = 1e-2, percision: int = 1e-4):
-    """
-    Function to sweep eta values until the eta that minimizes MSE values is found.
-    Starts by sweeping to find the upperbound then calls the helper function to search the inner bounds
-    """
-    if oper.normalize:
-        ground_truth = normalize_matrix(ground_truth)
-    eta = min_eta - starting_interval
-    prev = None
-    curr = None
-    while prev is None or prev > curr:
-        prev = curr
-        eta += starting_interval
-        if eta == 0:
-            oper.given_eta = 1e-9
-        else:
-            oper.given_eta = eta
-        recon = oper(oper.low_res_data)
-        curr = find_mse(ground_truth, recon)
-        print(curr, eta)
-    result = sweep_eta_helper(ground_truth, eta - starting_interval, starting_interval, percision, 1, oper, prev, (eta, curr))
-    return result
-
-def coarse_sweep(variable: str, oper: anic.AnatomicReconstructor, ground_truth):
-    """
-    Coarsely sweeps for best eta/lambda value out of a range of preset values
-    """
-    values =  [6e-2, 4.5e-2, 3e-2, 1.5e-2, 1e-2, 9e-3, 6e-3, 3e-3, 1e-3, 9e-4, 5e-4, 1e-4, 5e-5, 1e-5]
-    index = 7
-    if variable == "lambda":
-        oper.given_lambda = values[index]
-    else:
-        oper.given_eta = values[index]
-    curr = find_mse(ground_truth, oper(oper.low_res_data))
-    print (values[index], curr)
-    index += 1
-    if variable == "lambda":
-        oper.given_lambda = values[index]
-    else:
-        oper.given_eta = values[index]
-    nextl = find_mse(ground_truth, oper(oper.low_res_data))
-    print (values[index], nextl)
-    if curr < nextl:
-        index -= 2
-        direction = -1
-        if variable == "lambda":
-            oper.given_lambda = values[index]
-        else:
-            oper.given_eta = values[index]
-        nextl = find_mse(ground_truth, oper(oper.low_res_data))
-        print (values[index], nextl)
-    else: direction = 1
-    while nextl < curr:
-        curr = nextl
-        index += direction
-        try:
-            if variable == "lambda":
-                oper.given_lambda = values[index]
-            else:
-                oper.given_eta = values[index]
-        except IndexError as err:
-            raise IndexError(f"sweep reached end of values, {index} out of range") from err
-        nextl = find_mse(ground_truth, oper(oper.low_res_data))
-        print (values[index], nextl)
-    return values[index - direction]
 
 def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, lambda_num, max_iterations, saving_options):
     """
@@ -519,18 +250,19 @@ def compare_3D_downsamplings():
     """
     Compare the resolutions of different downsampling resolutions
     """
-    ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi_gt.nii.gz"))
-    ground_truth = ground_header.get_fdata()[:, :, 56, 0]
+    ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi_gt.nii.gz"))
+    ground_truth = ground_header.get_fdata()[:, :, :, 0]
     ground_truth = xp.array(normalize_matrix(ground_truth))
-    structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2_flair.nii.gz"))
+    structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t1.nii.gz"))
     structural_data = structural_header.get_fdata()
-    structural_data = normalize_matrix(structural_data)
+    structural_data = xp.array(normalize_matrix(structural_data))
+    
 
-    DS2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_2_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi.nii.gz"))
     DS2_data = DS2_header.get_fdata()[:, :, :, 0][::2, ::2, ::2]
     DS2_data = normalize_matrix(DS2_data)
 
-    save_options = {"given_path": "project_data/BraTS_DS_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI9_56DS2_FLAIR", "img_header": ground_header}
+    save_options = {"given_path": "project_data/BraTS_DS_Experiments_Reconstructions/Nifity_Files", "img_name": "DMI9_0.5DS2_T1", "img_header": ground_header}
     given_lambda = 9e-3
     given_eta = 2e-2
     op = anic.AnatomicReconstructor(structural_data, given_lambda, given_eta, 20000, True, save_options)
@@ -539,82 +271,90 @@ def compare_3D_downsamplings():
     recon_DS2 = op(DS2_data)
 
 
-    DS5_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_5_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS5_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_5_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi.nii.gz"))
     DS5_data = DS5_header.get_fdata()[:, :, :, 0][::5, ::5, ::5]
     DS5_data = normalize_matrix(DS5_data)
-    op.img_name = "DMI9_56DS5_FLAIR"
+    op.img_name = "DMI9_0.5DS5_T1"
     op.given_lambda = 6e-3
     op.given_eta = 4e-4
     recon_DS5 = op(DS5_data)
 
-    # DS10_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_10_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
-    # DS10_data = DS10_header.get_fdata()[:, :, :, 0][::10, ::10, ::10]
-    # DS10_data = normalize_matrix(DS10_data)
-    # op.img_name = "DMI9_56DS10_T1"
-    # op.given_lambda = 6e-3
-    # op.given_eta = 1e-3
-    # recon_DS10 = op(DS10_data)
-
-    DS11_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
+    DS11_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi.nii.gz"))
     DS11_data = DS11_header.get_fdata()[:, :, :, 0][::11, ::11, ::11]
     DS11_data = normalize_matrix(DS11_data)
-    op.img_name = "DMI9_56DS11_FLAIR"
+    op.img_name = "DMI9_0.5DS11_T1"
     op.given_lambda = 6e-3
     op.given_eta = 1e-3
+
     recon_DS11 = op(DS11_data)
 
-    if xp.__name__ == "cupy":
-            ground_truth = ground_truth.get()
-            structural_data = structural_data[:, :, 56]
-            recon_DS2 = recon_DS2.get()[:, :, 56]
-            recon_DS5 = recon_DS5.get()[:, :, 56]
-            # recon_DS10 = recon_DS10.get()[:, :, 56]
-            recon_DS11 = recon_DS11.get()[:, :, 56]
+    # DS10_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_10_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi.nii.gz"))
+    # DS10_data = DS10_header.get_fdata()[:, :, :, 0][::10, ::10, ::10]
+    down10 = spl.AverageDownsampling(ground_truth.shape, (10,10,10))
+    DS10_data = down10(ground_truth)
+    DS10_data = normalize_matrix(DS10_data)
+    op.img_name = "HalfDMI9_0.5DS10_T1"
+    op.given_lambda = 6e-3
+    op.given_eta = 1e-3
+    down2 = spl.AverageDownsampling(structural_data.shape, (2,2,2))
+    structural_data = down2(structural_data)
+    op.anatomical_data = structural_data
+    recon_DS10 = op(DS10_data)
 
-    fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(20,15))
+    SLICE= 56
+
+    if xp.__name__ == "cupy":
+            ground_truth = ground_truth.get()[:,:, SLICE]
+            structural_data = structural_data.get()[:, :, SLICE//2]
+            recon_DS2 = recon_DS2.get()[:, :, SLICE]
+            recon_DS5 = recon_DS5.get()[:, :, SLICE]
+            recon_DS10 = recon_DS10.get()[:, :, SLICE//2]
+            recon_DS11 = recon_DS11.get()[:, :, SLICE]
+
+    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(20,15))
     ax.ravel()[0].imshow(ground_truth, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
     ax.ravel()[0].set_title("gt")
     ax.ravel()[0].axis("off")
-    ax.ravel()[1].imshow(DS2_data[:, :, 28], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[1].imshow(DS2_data[:, :, SLICE//2], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
     ax.ravel()[1].set_title("4mm")
     ax.ravel()[1].axis("off")
-    ax.ravel()[2].imshow(DS5_data[:, :, 11], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[2].imshow(DS5_data[:, :, SLICE//5], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
     ax.ravel()[2].set_title("10mm")
     ax.ravel()[2].axis("off")
-    # ax.ravel()[3].imshow(DS10_data[:, :, 5], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[3].set_title("DS10")
-    # ax.ravel()[3].axis("off")
-    ax.ravel()[3].imshow(DS11_data[:, :, 5], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[3].set_title("22mm")
+    ax.ravel()[3].imshow(DS10_data[:, :, SLICE//10].get(), vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[3].set_title("20mm")
     ax.ravel()[3].axis("off")
-    ax.ravel()[4].imshow(structural_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[4].set_title("struct")
+    ax.ravel()[4].imshow(DS11_data[:, :, SLICE//11], vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[4].set_title("22mm")
     ax.ravel()[4].axis("off")
-    ax.ravel()[5].imshow(recon_DS2, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[5].set_title("")
+    ax.ravel()[5].imshow(structural_data, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[5].set_title("struct")
     ax.ravel()[5].axis("off")
-    ax.ravel()[6].imshow(recon_DS5, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[6].set_title("")
+    ax.ravel()[6].imshow(recon_DS2, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[6].set_title("2mm")
     ax.ravel()[6].axis("off")
-    # ax.ravel()[8].imshow(recon_DS10, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[8].set_title("")
-    # ax.ravel()[8].axis("off")
-    ax.ravel()[7].imshow(recon_DS11, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
-    ax.ravel()[7].set_title("")
+    ax.ravel()[7].imshow(recon_DS5, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[7].set_title("2mm")
     ax.ravel()[7].axis("off")
+    ax.ravel()[8].imshow(recon_DS10, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[8].set_title("4mm")
+    ax.ravel()[8].axis("off")
+    ax.ravel()[9].imshow(recon_DS11, vmin = 0, vmax = ground_truth.max(), cmap = 'Greys_r')
+    ax.ravel()[9].set_title("2mm")
+    ax.ravel()[9].axis("off")
     fig.tight_layout()
     fig.show()
 
 
 if __name__ == "__main__":
-    compare_3D_downsamplings()
+    # compare_3D_downsamplings()
     # compare_aquisitions()
-    # _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi_gt.nii.gz"))
-    # _ground_truth = _ground_header.get_fdata()[:, :, 56, 0]
+    # _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi_gt.nii.gz"))
+    # _ground_truth = _ground_header.get_fdata()[:, :, :, 0]
     # _ground_truth = xp.array(normalize_matrix(_ground_truth))
     # _structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t1.nii.gz"))
-    # _structural_data = _structural_header.get_fdata()[:, :, 56]
-    # _structural_data = normalize_matrix(_structural_data)
+    # _structural_data = _structural_header.get_fdata()
+    # _structural_data = xp.array(normalize_matrix(_structural_data))
 
     # _low_res_data_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_5.0_ed_2.0_noise_0.0/dmi.nii.gz"))
     # _low_res_data = _low_res_data_header.get_fdata()[:, :, 56, 0][::11, ::11]
@@ -652,7 +392,3 @@ if __name__ == "__main__":
     # ax.ravel()[3].axis("off")
     # fig.show()
     # fig.savefig(r"project_data/BraTS_Noise_Experiments_Reconstructions/Composites/DMI_brain_optimal.png")
-
-
-
-
