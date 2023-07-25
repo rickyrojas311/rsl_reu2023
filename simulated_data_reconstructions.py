@@ -2,71 +2,102 @@
 Testing environment for reconstructing DMI simulations
 """
 from __future__ import annotations
-import math
-import pathlib
 
 try:
     import cupy as xp
 except ImportError:
     import numpy as xp
-import sigpy as sp
+import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize_scalar
 
-import downsampling_subclass as spl
-import projection_operator_subclass as proj
 import anisotropic_class as anic
-import anisotropic_operator as anio
+from anisotropic_operator import normalize_matrix
 
-if __name__ is "__main__":
-    _img1_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi_gt.nii.gz"))
-    _ground_truth = _img1_header.get_fdata()[:, :, 56, 0]
-    _ground_truth = normalize_matrix(_ground_truth)
-    _img2_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/Noise_Experiments/DMI_patient_9_ds_11_gm_4.0_wm_1.0_tumor_6.0_noise_0.001/dmi.nii.gz"))
-    _low_res_data = _img2_header.get_fdata()[:, :, 56, 0]
-    _low_res_data = _low_res_data[::11, ::11]
-    _low_res_data = normalize_matrix(_low_res_data)
-    _img3_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t2_flair.nii.gz"))
-    _structural_data = _img3_header.get_fdata()[:, :, 56]
-    _structural_data = xp.array(normalize_matrix(_structural_data))
-    # _down = spl.AverageDownsampling(_structural_data.shape, (2, 2))
-    # _structural_data = _down(_structural_data)
+def display_DMI_res():
+    """
+    Creates matplotlib visualization for reconstructions for different inital
+    DMI resolutions
+    """
+    #Ground Truths
+    glx_header = nib.as_closest_canonical(nib.load(r""))
+    glx_gt = glx_header.get_fdata()[:, :, :, 0]
+    glx_gt = xp.array(normalize_matrix(glx_gt))
+    lac_header = nib.as_closest_canonical(nib.load(r""))
+    lac_gt = lac_header.get_fdata()[:, :, :, 0]
+    lac_gt = xp.array(normalize_matrix(lac_gt))
 
-    # print(_low_res_data.shape, _structural_data.shape)
+    #Structural Data
+    structural_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/MRI_2mm/t1.nii.gz"))
+    structural_data = structural_header.get_fdata()
+    structural_data = xp.array(normalize_matrix(structural_data))
 
-    save_options = {"given_path": r"project_data/BraTS_Noise_Expirements_Reconstructions", "img_header": _img1_header}
-    _op = anic.AnatomicReconstructor(_structural_data, (11, 11), 0.007, 0.0015, 8000, True, save_options)
-    # _op.low_res_data = _low_res_data
-    # _op.given_lambda = sweep_lambda(_ground_truth, _op)
-    # _op.given_eta = sweep_eta(_ground_truth, _op)
-    # _recon = _op(_low_res_data)
+    #Low Res Data
+    mm4_header = nib.as_closest_canonical(nib.load(r""))
+    data_4mm = mm4_header.get_fdata()[:, :, :, 0][::2, ::2, ::2]
+    data_4mm = xp.array(normalize_matrix(data_4mm))
+    mm12_header = nib.as_closest_canonical(nib.load(r""))
+    data_12mm = mm12_header.get_fdata()[:, :, :, 0][::6, ::6, ::6]
+    data_12mm = xp.array(normalize_matrix(data_12mm))
+    mm24_header = nib.as_closest_canonical(nib.load(r""))
+    data_24mm = mm24_header.get_fdata()[:, :, :, 0][::12, ::12, ::12]
+    data_24mm = xp.array(normalize_matrix(data_24mm))
 
-    # img = plt.imshow(_recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
-    # filename = f"{_low_res_data.ndim}D_lambda-{_op.given_lambda}_eta-{_op.given_eta}_iter-{_op.max_iter}"
-    # if _op.normalize:
-    #     filename += "_norm"
-    # filename += ".png"
-    # search_path = pathlib.Path("project_data/BraTS_Noise_Expirements_Reconstructions/Final Build").joinpath(filename)
-    # plt.savefig(search_path)
-    # plt.show()
+    #Operator set up
+    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files", "img_name": "", "img_header": glx_header}
+    oper = anic.AnatomicReconstructor(structural_data, 1e-2, 7e-3, 20000, True, save_options)
 
-    # _recon = _op(_low_res_data)
-    # img = plt.imshow(_recon, "Greys_r", vmin=0, vmax=_ground_truth.max())
-    # plt.show()
+    #Reconstructions
+    oper.img_name = ""
+    recon_4mm = oper(data_4mm)
 
-    # fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(20,15))
-    # ax.ravel()[0].imshow(_ground_truth, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[0].set_title("ground truth")
-    # ax.ravel()[0].axis("off")
-    # ax.ravel()[1].imshow(_low_res_data, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[1].set_title("low res")
-    # ax.ravel()[1].axis("off")
-    # ax.ravel()[2].imshow(_structural_data.get(), vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[2].set_title("structure")
-    # ax.ravel()[2].axis("off")
-    # ax.ravel()[3].imshow(_recon, vmin = 0, vmax = _ground_truth.max(), cmap = 'Greys_r')
-    # ax.ravel()[3].set_title("Reconstruction")
-    # ax.ravel()[3].axis("off")
-    # fig.show()
-    # fig.savefig(r"project_data\BraTS_Noise_Expirements_Reconstructions\patient_9_all_data_side_by+reconstruction")
+    oper.img_name = ""
+    oper.given_lambda = 6e-3
+    oper.given_eta = 4e-4
+    recon_12mm = oper(data_12mm)
+
+    oper.img_name = ""
+    oper.given_lambda = 6e-3
+    oper.given_eta = 1e-3
+    recon_24mm = oper(data_24mm)
+
+    SLICE= 56
+
+    if xp.__name__ == "cupy":
+            glx_gt = glx_gt.get()[:,:, SLICE]
+            lac_gt = lac_gt.get()[:,:, SLICE]
+            structural_data = structural_data.get()[:, :, SLICE]
+            recon_4mm = recon_4mm.get()[:, :, SLICE]
+            recon_12mm = recon_12mm.get()[:, :, SLICE]
+            recon_24mm = recon_24mm.get()[:, :, SLICE]
+
+    #Create Image
+    fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(20,15))
+    ax = ax.ravel()
+    ax[0].imshow(structural_data, vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[0].set_ylabel("Glx Orig")
+    ax[0].set_title("GT")
+    ax[0].axis("off")
+    ax[1].imshow(data_4mm[:, :, SLICE//2], vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[1].set_title("4mm")
+    ax[1].axis("off")
+    ax[2].imshow(data_12mm[:, :, SLICE//6], vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[2].set_title("12mm")
+    ax[2].axis("off")
+    ax[3].imshow(data_24mm[:, :, SLICE//12], vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[3].set_title("24mm")
+    ax[3].axis("off")
+    ax[4].imshow(glx_gt, vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[4].set_ylabel("Glx Recon")
+    ax[4].axis("off")
+    ax[5].imshow(recon_4mm, vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[5].axis("off")
+    ax[6].imshow(recon_12mm, vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[6].axis("off")
+    ax[7].imshow(recon_24mm, vmin = 0, vmax = glx_gt.max(), cmap = 'Greys_r')
+    ax[7].axis("off")
+    fig.tight_layout()
+    fig.show()
+
+if __name__ == "__main__":
+     display_DMI_res()
