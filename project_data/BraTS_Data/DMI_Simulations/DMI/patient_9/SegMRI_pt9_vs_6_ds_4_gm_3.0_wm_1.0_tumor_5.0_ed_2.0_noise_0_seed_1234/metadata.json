@@ -1,0 +1,1 @@
+{"brats_num": 9, "recon_voxsize": 6, "downsample_factor": 4, "seed": 1234, "rel_noise_level": 0, "i_gm": 3.0, "i_wm": 1.0, "i_csf": 0.0, "i_enh_tumor": 5.0, "i_ed": 2.0, "i_nec": 0.0}
