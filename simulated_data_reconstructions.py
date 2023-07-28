@@ -73,7 +73,7 @@ def display_DMI_res():
 
     if xp.__name__ == "cupy":
         glx_gt = glx_gt.get()[:, :, SLICE]
-        lac_gt = lac_gt.get()[:, :, SLICE]
+        # lac_gt = lac_gt.get()[:, :, SLICE]
         structural_data = structural_data.get()[:, :, SLICE]
         recon_4mm = recon_4mm.get()[:, :, SLICE]
         recon_12mm = recon_12mm.get()[:, :, SLICE]
@@ -110,6 +110,68 @@ def display_DMI_res():
     fig.tight_layout()
     fig.show()
 
+def display_DMI():
+    """
+    Creates matplotlib visualization for reconstructions for different inital
+    DMI resolutions
+    """
+    SLICE = 60 - 1
+    dmi_reses = [4, 12, 24]
+
+    fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(20, 15))
+    # Ground Truth
+    gt_header = nib.as_closest_canonical(nib.load(
+        "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/DMI_patient_9_vs_2_ds_6_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi_gt.nii.gz"))
+    ground_truth = gt_header.get_fdata()[:, :, :, 0]
+    ground_truth = xp.array(normalize_matrix(ground_truth))
+    if xp.__name__ == "cupy":
+        ground_truth = ground_truth.get()[:, :, SLICE]
+    # Structural Data
+    structural_header = nib.as_closest_canonical(nib.load(
+        "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/2_t1.nii.gz"))
+    structural_data = structural_header.get_fdata()
+    structural_data = xp.array(normalize_matrix(structural_data))
+    
+    ax[0][0].imshow(ground_truth, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+    ax[0][0].set_title("GT")
+    ax[0][0].set_ylabel("Glx Orig")
+    ax[0][0].axis("off")
+    ax[1][0].imshow(structural_data.get()[:, :, SLICE], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+    ax[1][0].set_ylabel("Glx Recon")
+    ax[1][0].axis("off")
+    for i in range(4):
+        if i > 0:
+            dmi_res = dmi_reses[i - 1]
+            ds_factor = dmi_res//2
+            # Low Res Data
+            low_res_data_header = nib.as_closest_canonical(nib.load(
+                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/DMI_patient_9_vs_2_ds_{ds_factor}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi.nii.gz"))
+            low_res_data = low_res_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+            low_res_data = xp.array(normalize_matrix(low_res_data))
+            for j in range(2):
+                if j == 0:
+                    if xp.__name__ == "cupy":
+                            show_data = low_res_data.get()
+                    else:
+                        show_data = low_res_data
+                    ax[j][i].imshow(show_data, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                    ax[j][i].set_title(f"{dmi_res}mm")
+                    ax[j][i].axis("off")
+                else:
+                    # Reconstructions
+                    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
+                                    "img_name": f"DMI9_Glx_2mmPrior_{dmi_res}mmDMI", "img_header": gt_header}
+                    oper = anic.AnatomicReconstructor(
+                        structural_data, 6e-3, 1e-3, 20000, True, save_options)
+                    recon = oper(low_res_data)
+                    if xp.__name__ == "cupy":
+                        recon = recon.get()
+                    recon = recon[:, :, (SLICE * 2)//prior_res]
+                    ax[j][i].imshow(
+                        recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                    ax[j][i].axis("off")
+    fig.tight_layout()
+    fig.show()
 
 def display_prior_res():
     """
@@ -268,4 +330,6 @@ def display_MR_contrast():
 
 
 if __name__ == "__main__":
+    display_DMI_res()
+    display_prior_res()
     display_MR_contrast()
