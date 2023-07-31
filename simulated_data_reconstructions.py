@@ -391,6 +391,21 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     fig.tight_layout()
     fig.show()
 
+def display_noise_stats(noise_level: int, dmi_type: str, prior_res: int, dmi_res: int, slice:int):
+    """
+    Examines how noise can affect the reconstruction
+    """
+    #Set Parameters
+    if dmi_type == "Glx":
+        dmi_settings = "gm_3.0_wm_1.0_tumor_0.5_ed_2.0"
+    elif dmi_type == "Lac":
+        dmi_settings = "gm_0.3_wm_0.1_tumor_3.0_ed_1.0"
+    else:
+        raise ValueError(f"dmi_type must be easier Glx or Lac not {dmi_type}")
+    slice -= 1
+    if dmi_res % prior_res != 0:
+        raise ValueError(f"dmi_res {dmi_res} should even scale into prior_res {prior_res}")
+    ds_factor = dmi_res//prior_res
 
 def turn_axis_off(axes: np.ndarray):
     for ax in axes.flat:
