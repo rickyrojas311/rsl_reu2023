@@ -2,6 +2,7 @@
 Testing environment for reconstructing DMI simulations
 """
 from __future__ import annotations
+import sys
 
 try:
     import cupy as xp
@@ -13,6 +14,7 @@ import matplotlib.pyplot as plt
 
 import anisotropic_class as anic
 from anisotropic_operator import normalize_matrix
+from pydeutmr.pydeutmr.data import simulate_DMI_scans
 
 def display_DMI_res():
     """
@@ -418,10 +420,10 @@ def turn_axis_off(axes: np.ndarray):
 
 if __name__ == "__main__":
     display_DMI_res()
-    display_prior_res()
-    display_prior_res_cont()
-    display_MR_contrast()
-    Lac = [0, 0.233, 0.33, 0.466]
-    Glx = [0, 0.1414, 0.2, 0.2828]
-    display_noise_effect(Lac, "Lac", 6, 24, 60)
-    display_noise_effect(Glx, "Glx", 6, 24, 60)
+    # display_prior_res()
+    # display_prior_res_cont()
+    # display_MR_contrast()
+    # Lac = [0, 0.233, 0.33, 0.466]
+    # Glx = [0, 0.1414, 0.2, 0.2828]
+    # display_noise_effect(Lac, "Lac", 6, 24, 60)
+    # display_noise_effect(Glx, "Glx", 6, 24, 60)
