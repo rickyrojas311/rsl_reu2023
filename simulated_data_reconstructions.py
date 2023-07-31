@@ -333,6 +333,8 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     slice -= 1
     if dmi_res % prior_res != 0:
         raise ValueError(f"dmi_res {dmi_res} should even scale into prior_res {prior_res}")
+    if len(noise_levels) > 4:
+        raise ValueError(f"Can only display up to 4 noise levelsnot {len(noise_levels)}")
     ds_factor = dmi_res//prior_res
     
     #Create Plot
@@ -340,7 +342,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     turn_axis_off(ax)
     # Ground Truth
     gt_header = nib.as_closest_canonical(nib.load(
-        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}N_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_0.2_seed_1234/dmi_gt.nii.gz"))
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_0.2_seed_1234/dmi_gt.nii.gz"))
     ground_truth = gt_header.get_fdata()[:, :, :, 0]
     ground_truth = xp.array(normalize_matrix(ground_truth))
     if xp.__name__ == "cupy":
@@ -361,7 +363,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
             noise = noise_levels[i - 1]
             # Low Res Data
             low_res_data_header = nib.as_closest_canonical(nib.load(
-                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}N_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_{noise}_seed_1234/dmi.nii.gz"))
+                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_{noise}_seed_1234/dmi.nii.gz"))
             low_res_data = low_res_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
             low_res_data = xp.array(normalize_matrix(low_res_data))
             for j in range(2):
@@ -400,8 +402,11 @@ def turn_axis_off(axes: np.ndarray):
 
 
 if __name__ == "__main__":
-    # display_DMI_res()
-    # display_prior_res()
-    # display_prior_res_cont()
-    # display_MR_contrast()
-    display_noise_effect([0, 0.233, 0.33, 0.466], "Lac", 6, 24, 60)
+    display_DMI_res()
+    display_prior_res()
+    display_prior_res_cont()
+    display_MR_contrast()
+    Lac = [0, 0.233, 0.33, 0.466]
+    Glx = [0, 0.1414, 0.2, 0.2828]
+    display_noise_effect(Lac, "Lac", 6, 24, 60)
+    display_noise_effect(Glx, "Glx", 6, 24, 60)
