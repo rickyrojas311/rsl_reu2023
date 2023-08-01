@@ -14,7 +14,9 @@ import matplotlib.pyplot as plt
 
 import anisotropic_class as anic
 from anisotropic_operator import normalize_matrix
-from pydeutmr.pydeutmr.data import simulate_DMI_scans
+
+sys.path.append("/home/ricky")
+from pydeutmr.pydeutmr.data import simulation_wrapper
 
 def display_DMI_res():
     """
@@ -321,7 +323,7 @@ def display_MR_contrast():
     fig.tight_layout()
     fig.show()
 
-def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int, dmi_res: int, slice:int):
+def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int, dmi_res: int, display_slice:int):
     """
     Examines how noise can affect the reconstruction
     """
@@ -332,7 +334,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
         dmi_settings = "gm_0.3_wm_0.1_tumor_3.0_ed_1.0"
     else:
         raise ValueError(f"dmi_type must be easier Glx or Lac not {dmi_type}")
-    slice -= 1
+    display_slice -= 1
     if dmi_res % prior_res != 0:
         raise ValueError(f"dmi_res {dmi_res} should even scale into prior_res {prior_res}")
     if len(noise_levels) > 4:
@@ -348,7 +350,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     ground_truth = gt_header.get_fdata()[:, :, :, 0]
     ground_truth = xp.array(normalize_matrix(ground_truth))
     if xp.__name__ == "cupy":
-        ground_truth = ground_truth.get()[:, :, (slice * 2)//prior_res]
+        ground_truth = ground_truth.get()[:, :, (display_slice * 2)//prior_res]
     # Structural Data
     structural_header = nib.as_closest_canonical(nib.load(
         f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_t1.nii.gz"))
@@ -358,7 +360,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     ax[0][0].imshow(ground_truth, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
     ax[0][0].set_title("GT/Struct")
     ax[0][0].set_ylabel(f"{dmi_type} Orig")
-    ax[1][0].imshow(structural_data.get()[:, :, (slice * 2)//prior_res], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+    ax[1][0].imshow(structural_data.get()[:, :, (display_slice * 2)//prior_res], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
     ax[1][0].set_ylabel(f"{dmi_type} Recon")
     for i in range(5):
         if i > 0:
@@ -374,7 +376,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
                             show_data = low_res_data.get()
                     else:
                         show_data = low_res_data
-                    ax[j][i].imshow(show_data[:, :, (slice * 2)//prior_res//ds_factor], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                    ax[j][i].imshow(show_data[:, :, (display_slice * 2)//prior_res//ds_factor], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
                     ax[j][i].set_title(f"{noise}")
                     
                 else:
@@ -386,14 +388,14 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
                     recon = oper(low_res_data)
                     if xp.__name__ == "cupy":
                         recon = recon.get()
-                    recon = recon[:, :, (slice * 2)//prior_res]
+                    recon = recon[:, :, (display_slice * 2)//prior_res]
                     ax[j][i].imshow(
                         recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
                     
     fig.tight_layout()
     fig.show()
 
-def display_noise_stats(noise_level: int, dmi_type: str, prior_res: int, dmi_res: int, slice:int):
+def display_noise_stats(noise_level: int, dmi_type: str, prior_res: int, dmi_res: int, display_slice: int, num_iter: int = 20,):
     """
     Examines how noise can affect the reconstruction
     """
@@ -404,10 +406,61 @@ def display_noise_stats(noise_level: int, dmi_type: str, prior_res: int, dmi_res
         dmi_settings = "gm_0.3_wm_0.1_tumor_3.0_ed_1.0"
     else:
         raise ValueError(f"dmi_type must be easier Glx or Lac not {dmi_type}")
-    slice -= 1
+    display_slice -= 1
     if dmi_res % prior_res != 0:
         raise ValueError(f"dmi_res {dmi_res} should even scale into prior_res {prior_res}")
     ds_factor = dmi_res//prior_res
+
+    #Ground Truth
+    gt_header = nib.as_closest_canonical(nib.load(
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_0.2_seed_1234/dmi_gt.nii.gz"))
+    ground_truth = gt_header.get_fdata()[:, :, :, 0]
+    ground_truth = xp.array(normalize_matrix(ground_truth))
+    if xp.__name__ == "cupy":
+        ground_truth = ground_truth.get()[:, :, (display_slice * 2)//prior_res]
+
+    #Structural Data
+    structural_header = nib.as_closest_canonical(nib.load(
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_t1.nii.gz"))
+    structural_data = structural_header.get_fdata()
+    structural_data = xp.array(normalize_matrix(structural_data))
+
+    settings = {"i_type": dmi_type, "dmi_res": dmi_res, "prior_res": prior_res,
+                "brats_path": "/home/ricky/rsl_reu2023/project_data/BraTS_Data/DMI_Simulations",
+                "brats_num": 9, "noise": 0.2}
+    np.random.seed(100)
+    seeds = np.random.randint(1000, 9000, num_iter)
+
+    recons = xp.zeros((len(seeds),) + ground_truth.shape)
+    for i, seed in enumerate(seeds):
+        settings["seed"] = seed
+        simulation_wrapper(settings)
+
+        #Low Res Data
+        low_res_data_header = nib.as_closest_canonical(nib.load(
+                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_{noise_level}_seed_{seed}/dmi.nii.gz"))
+        low_res_data = low_res_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+        low_res_data = xp.array(normalize_matrix(low_res_data))
+
+        save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
+                                    "img_name": f"DMI9_{dmi_type}_{prior_res}mmPrior_{dmi_res}mmDMI_{noise_level}Noise_{seed}Seed", "img_header": gt_header}
+        oper = anic.AnatomicReconstructor(
+                structural_data, 6e-3, 1e-3, 20000, True, save_options)
+        recon = oper(low_res_data)
+        # if xp.__name__ == "cupy":
+        #     recon = recon.get()
+        recon = recon[:, :, (display_slice * 2)//prior_res]
+        recons[i,...] = recon
+
+    mean_recon = np.mean(recons, 0)
+
+    fig, ax = plt.subplot()
+    ax.imshow(mean_recon.get())
+    ax.axis("off")
+
+    fig.show()
+
+
 
 def turn_axis_off(axes: np.ndarray):
     for ax in axes.flat:
@@ -419,7 +472,7 @@ def turn_axis_off(axes: np.ndarray):
 
 
 if __name__ == "__main__":
-    display_DMI_res()
+    # display_DMI_res()
     # display_prior_res()
     # display_prior_res_cont()
     # display_MR_contrast()
@@ -427,3 +480,4 @@ if __name__ == "__main__":
     # Glx = [0, 0.1414, 0.2, 0.2828]
     # display_noise_effect(Lac, "Lac", 6, 24, 60)
     # display_noise_effect(Glx, "Glx", 6, 24, 60)
+    display_noise_stats(0.2, "Glx", 6, 24, 60)

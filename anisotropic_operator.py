@@ -75,7 +75,6 @@ def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, varia
     """
     Shows the difference between the ground truth and the reconstruction
     """
-    # import ipdb; ipdb.set_trace()
     recons = xp.zeros((len(variables),) + ground_truth.shape)
     for i, var in enumerate(variables):
         if variable == "lambda":

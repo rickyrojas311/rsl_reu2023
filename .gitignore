@@ -2,4 +2,4 @@ project_data/BraTS_Reconstructions/*
 project_data/BraTS_Noise_Experiments_Reconstructions/*
 project_data/BraTS_DS_Experiments_Reconstructions/*
 project_data/BraTS_Data/BraTS_data_by_lesion_size/*
-rsl_reu2023/project_data/BraTS_Data/DMI_Simulations/DMI/*
+project_data/BraTS_Data/DMI_Simulations/DMI/*
