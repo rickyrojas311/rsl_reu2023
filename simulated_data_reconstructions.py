@@ -11,6 +11,7 @@ except ImportError:
 import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
+from scipy import ndimage
 
 import anisotropic_class as anic
 from anisotropic_operator import normalize_matrix
@@ -79,17 +80,12 @@ def display_DMI_res():
                         recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
                 else:
                     #Interpolations
-                    fourier_transform = np.fft.fftn(low_res_data)
-                    pad_width = ((55, 55), (55, 55), (55, 55))
-                    padded_fourier_transform = np.pad(fourier_transform, pad_width, mode='constant')
-                    padded_fourier_transform_centered = np.fft.fftshift(padded_fourier_transform)
-                    inverse_transform_centered = np.fft.ifftn(np.fft.ifftshift(padded_fourier_transform_centered))
-                    output_image_centered = np.abs(inverse_transform_centered)
                     if xp.__name__ == "cupy":
-                        output_image_centered = output_image_centered.get()
-                    output_image_centered = output_image_centered[:, :, SLICE]
+                        low_res_data = low_res_data.get()
+                    interpolated_data = ndimage.zoom(low_res_data, (ds_factor, ds_factor, ds_factor), order=3)
+                    interpolated_data = interpolated_data[:, :, SLICE]
                     ax[j][i].imshow(
-                        output_image_centered, vmin=0, vmax=output_image_centered.max(), cmap='Greys_r')
+                        interpolated_data, vmin=0, vmax=interpolated_data.max(), cmap='Greys_r')
                     
     fig.tight_layout()
     fig.show()
