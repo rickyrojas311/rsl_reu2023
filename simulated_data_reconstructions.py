@@ -97,7 +97,7 @@ def display_prior_res():
     SLICE = 60 - 1
     prior_reses = [2, 6, 4, 3, 2]
     dmi_reses = [12, 24]
-    fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(12, 12))
+    fig, ax = plt.subplots(nrows=3, ncols=5, figsize=(17, 10))
     turn_axis_off(ax)
     for i in range(5):
         prior_res = prior_reses[i]
@@ -164,7 +164,7 @@ def display_prior_res():
                         recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
                     
     fig.tight_layout()
-    fig.show()
+    # fig.show()
 
 def display_prior_res_cont():
     """
@@ -254,6 +254,77 @@ def display_prior_res_cont():
                         
     fig.tight_layout()
     fig.show()
+
+def display_prior_res_presentation():
+    """
+    Formats the display 
+    """
+    SLICE = 60 - 1
+    dses = [2, 3, 4, 6]
+    dmi_reses = [12, 24]
+    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(12, 5))
+    turn_axis_off(ax)
+    for i in range(5):
+        # Ground Truth
+        gt_header = nib.as_closest_canonical(nib.load(
+            f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_2_ds_2_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi_gt.nii.gz"))
+        ground_truth = gt_header.get_fdata()[:, :, :, 0]
+        ground_truth = xp.array(normalize_matrix(ground_truth))
+        if xp.__name__ == "cupy":
+            ground_truth = ground_truth.get()[:, :, SLICE]
+
+        for j in range(2):
+            if i != 0:
+                ax[0][i].set_title(f"{ds_factor}x")    
+            dmi_res = dmi_reses[j]
+            ds_factor = dses[i - 1]
+            prior_res = dmi_res//ds_factor
+
+            # Structural Data
+            structural_header = nib.as_closest_canonical(nib.load(
+                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_t1.nii.gz"))
+            structural_data = structural_header.get_fdata()
+            structural_data = xp.array(normalize_matrix(structural_data))
+            structural_data = structural_data
+
+            # Low Res Data
+            low_res_data_header = nib.as_closest_canonical(nib.load(
+                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_{prior_res}_ds_{ds_factor}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi.nii.gz"))
+            low_res_data = low_res_data_header.get_fdata(
+            )[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+            low_res_data = xp.array(normalize_matrix(low_res_data))
+
+            if i == 0:
+                if j == 0:
+                    ax[j][i].set_title("Low Res")
+                if xp.__name__ == "cupy":
+                    show_data = low_res_data.get()
+                else:
+                    show_data = low_res_data
+                if j == 0:
+                    show_data = show_data[:, :, int(SLICE/120 * 20)]
+                else:
+                    show_data = show_data[:, :, int(SLICE/120 * 10)]
+                ax[j][i].imshow(show_data, vmin=0,
+                                vmax=ground_truth.max(), cmap='Greys_r')
+                ax[j][i].set_ylabel(f"{dmi_res}mm")
+                
+            else:
+                # Reconstructions
+                print(prior_res, ds_factor, dmi_res)
+                save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
+                                "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
+                oper = anic.AnatomicReconstructor(
+                    structural_data, 6e-3, 1e-3, 20000, True, save_options)
+                recon = oper(low_res_data)
+                if xp.__name__ == "cupy":
+                    recon = recon.get()
+                recon = recon[:, :, (SLICE * 2)//prior_res]
+                ax[j][i].imshow(
+                    recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                    
+    fig.tight_layout()
+    # fig.show()
 
 def display_MR_contrast():
     """
@@ -426,9 +497,8 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
         raise ValueError(f"dmi_type must be easier Glx or Lac not {dmi_type}")
     display_slice -= 1
     reses = [(24, 6), (12, 2)]
-    # reses = [(24, 6)]
 
-    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(15,15))
+    fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(12,5))
     turn_axis_off(ax)
     for j, res in enumerate(reses):
         dmi_res = res[0]
@@ -470,17 +540,17 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
             simulation_wrapper(settings)
 
             #Noise Low Res Data
-            noiseless_data_header = nib.as_closest_canonical(nib.load(
+            noise_data_header = nib.as_closest_canonical(nib.load(
                     f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_{noise_level}_seed_{seed}/dmi.nii.gz"))
-            noiseless_data = noiseless_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
-            noiseless_data = xp.array(normalize_matrix(noiseless_data))
+            noise_data = noise_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+            noise_data = xp.array(normalize_matrix(noiseless_data))
 
             save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
                                         "img_name": f"DMI9_{dmi_type}_{prior_res}mmPrior_{dmi_res}mmDMI_{noise_level}Noise_{seed}Seed", "img_header": gt_header}
             oper = anic.AnatomicReconstructor(
                     structural_data, 6e-3, 1e-3, 20000, True, save_options)
-            noiseless_recon = oper(noiseless_data)
-            recons[i,...] = noiseless_recon
+            noise_recon = oper(noise_data)
+            recons[i,...] = noise_recon
 
         mean_recon = np.mean(recons, 0)
 
@@ -511,7 +581,7 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
         ax[0][4].set_title("Error")
 
     fig.tight_layout()
-    fig.show()
+    # fig.show()
 
 def display_in_vivo():
     """
@@ -521,55 +591,69 @@ def display_in_vivo():
     prior_res = 3
     dmi_res = 15
     ds_factor = 15//3
-    contrasts = ["Glx", "Lac", "Glx/Lac Ratio"]
+    contrasts = [("Glx","project_data/In_Vivo/Patient C/glx.nii.gz"), ("Lac", "project_data/In_Vivo/Patient C/lac.nii.gz"), ("LacGlx", "project_data/In_Vivo/Patient C/lac_glx_ratio.nii.gz")]
 
-    # fig, ax = plt.subplots(nrows=2, ncols=4, figsize=(10, 7))
-    fig, ax = plt.subplots()
-    # turn_axis_off(ax)
-    # Structural Data
-    structural_header = nib.as_closest_canonical(nib.load(
-        "project_data/In_Vivo/Patient C/t1.nii.gz"))
-    structural_data = structural_header.get_fdata()
-    structural_data = xp.array(normalize_matrix(structural_data))
-    print(structural_data.shape)
-    structural_data = downsample(downsample(downsample(structural_data, prior_res, axis=0),
-                    prior_res, axis=1), prior_res, axis=2)
-    print("struct", structural_data.shape)
-
-    #Low Res Data
-    low_res_data_header = nib.as_closest_canonical(nib.load(
-        # "project_data/In_Vivo/Patient C/lac_glx_ratio.nii.gz"))
-        "project_data/In_Vivo/Patient C/glx.nii.gz"))
-        # "project_data/In_Vivo/Patient C/lac.nii.gz"))
-    low_res_data = low_res_data_header.get_fdata()
-    low_res_data = xp.array(normalize_matrix(low_res_data))
-    low_res_data = downsample(downsample(downsample(low_res_data, prior_res, axis=0),
-                    prior_res, axis=1), prior_res, axis=2)
-    low_res_data = low_res_data[::ds_factor, ::ds_factor, ::ds_factor]
-    print("low_res", low_res_data.shape)
-
-    #Reconstruction
-    save_options = {"given_path": "project_data/In_Vivo_Reconstructions",
-                                    "img_name": "PtC_Glx_vs_3_ds_5", "img_header": structural_header}
-    oper = anic.AnatomicReconstructor(
-        structural_data, 6e-3, 1e-3, 20000, True, save_options)
-    recon = oper(low_res_data)
-    if xp.__name__ == "cupy":
-        structural_data = structural_data.get()
-        low_res_data = low_res_data.get()
-        recon = recon.get()
-    structural_data = structural_data[(display_slice * 2)//prior_res, :, :]
-    low_res_data = low_res_data[(display_slice * 2)//prior_res//ds_factor, :, :]
-    recon = recon[(display_slice * 2)//prior_res, :, :]
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 20))
+    fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(10, 7))
     turn_axis_off(ax)
-    ax[0].imshow(structural_data, "Greys_r", vmin=0, vmax=structural_data.max())
-    ax[0].set_title("structural")
-    ax[1].imshow(low_res_data, "Greys_r", vmin=0, vmax=structural_data.max())
-    ax[1].set_title("Glx")
-    ax[2].imshow(recon, vmin=0, vmax=structural_data.max(), cmap='Greys_r')
-    ax[2].set_title("Recon")
-                    
+    for i in range(3):
+        # if i == 0:
+            # Structural Data
+            structural_header = nib.as_closest_canonical(nib.load(
+                "project_data/In_Vivo/Patient C/t1.nii.gz"))
+            structural_data = structural_header.get_fdata()
+            structural_data = xp.array(normalize_matrix(structural_data))
+            structural_data = downsample(downsample(downsample(structural_data, prior_res, axis=0),
+                            prior_res, axis=1), prior_res, axis=2)
+            structural_data = xp.array(normalize_matrix(structural_data))
+            structural_data = xp.rot90(structural_data, 1, (1, 2))
+            # if xp.__name__ == "cupy":
+            #     show_data = structural_data.get()
+            # else:
+            #     show_data = structural_data
+            # show_data = show_data[(display_slice * 2)//prior_res//ds_factor, :, :]
+            # ax[0][0].imshow(show_data, "Greys_r", vmin=0, vmax=structural_data.max())
+            # ax[0][0].set_title("Structural")
+        # else:
+            contrast = contrasts[i]
+            contrast_type = contrast[0]
+            contrast_code = contrast[1]
+            #Low Res Data
+            low_res_data_header = nib.as_closest_canonical(nib.load(contrast_code))
+            low_res_data = low_res_data_header.get_fdata()
+            low_res_data = xp.array(normalize_matrix(low_res_data))
+            low_res_data = downsample(downsample(downsample(low_res_data, prior_res, axis=0),
+                            prior_res, axis=1), prior_res, axis=2)
+            low_res_data = xp.array(normalize_matrix(low_res_data))
+            low_res_data = low_res_data[::ds_factor, ::ds_factor, ::ds_factor]
+            low_res_data = xp.rot90(low_res_data, 1, (1, 2))
+            for j in range(2):
+                if j == 0:
+                    if xp.__name__ == "cupy":
+                        show_data = low_res_data.get()
+                    else:
+                        show_data = low_res_data
+                    show_data = show_data[(display_slice * 2)//prior_res//ds_factor, :, :]
+                    ax[j][i].imshow(show_data, "Greys_r", vmin=0, vmax=structural_data.max())
+                    if contrast_type != "LacGlx":
+                        ax[j][i].set_title(contrast_type)
+                    else:
+                        ax[j][i].set_title("Lac/(Glx+Lac)")
+                    if i == 0:
+                        ax[j][i].set_ylabel("Original Data")
+                else:
+                    #Reconstruction
+                    save_options = {"given_path": "project_data/In_Vivo_Reconstructions",
+                                                    "img_name": f"PtC_{contrast_type}_vs_3_ds_5", "img_header": structural_header}
+                    oper = anic.AnatomicReconstructor(
+                        structural_data, 6e-3, 1e-3, 20000, True, save_options)
+                    recon = oper(low_res_data)
+                    recon = recon[(display_slice * 2)//prior_res, :, :]
+                    if xp.__name__ == "cupy":
+                        recon = recon.get()
+                    ax[j][i].imshow(recon, "Greys_r", vmin=0, vmax=structural_data.max())
+                    if i == 0:
+                        ax[j][i].set_ylabel("Reconstructions")
+    print(structural_data.max(), recon.max(), low_res_data.max())             
     fig.tight_layout()
     fig.show()
 
@@ -581,11 +665,21 @@ def turn_axis_off(axes: np.ndarray):
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
 
+def stdev_masked_area(image, mask, mask_value):
+    """
+    Given an image and a masked area calculates the standard deviation of the pixels inside of the masked area
+    """
+    masked = image * (mask == mask_value)
+    mask_avg = xp.mean(masked)
+    return ((xp.sum(masked - mask_avg)) ** 2 / masked.size) ** 0.5
+    
+
 
 if __name__ == "__main__":
-    display_DMI_res()
+    # display_DMI_res()
     # display_prior_res()
     # display_prior_res_cont()
+    # display_prior_res_presentation()
     # display_MR_contrast()
     # Lac = [0, 0.233, 0.33, 0.466]
     # Glx = [0, 0.1414, 0.2, 0.2828]
@@ -593,4 +687,17 @@ if __name__ == "__main__":
     # display_noise_effect(Glx, "Glx", 6, 24, 60)
     # display_noise_stats(0.2, "Glx", 60)
     # display_noise_stats(0.33, "Lac", 60)
-    # display_in_vivo()
+    display_in_vivo()
+    # gt_header = nib.as_closest_canonical(nib.load(
+    #     "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_2_ds_2_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi_gt.nii.gz"))
+    # ground_truth = gt_header.get_fdata()[:, :, :, 0]
+    # ground_truth = xp.array(normalize_matrix(ground_truth))
+
+    # header = nib.as_closest_canonical(nib.load("project_data/BraTS_Data/DMI_Simulations/BraTS20_Training_009/BraTS20_Training_009_seg.nii"))
+    # data = np.flip(normalize_matrix(header.get_fdata()))
+    # image = data[:, :, 78]
+    # fig, ax = plt.subplots()
+    # ax.imshow(image, "Greys_r", vmin=0, vmax=ground_truth.max())
+    # ax.axis("off")
+    # fig.show()
+    plt.savefig("project_data/Project_Visualizations/display_in_vivo.png", dpi=300, bbox_inches='tight', pad_inches=0.0)
