@@ -1,5 +1,6 @@
 """
-Testing environment for reconstructing DMI simulations
+Testing environment for reconstructing DMI simulations and 
+formatting them for the final RSL REU presentation
 """
 from __future__ import annotations
 import sys
@@ -16,14 +17,16 @@ from scipy import ndimage
 import anisotropic_class as anic
 from anisotropic_operator import normalize_matrix
 
-sys.path.append("/home/ricky")
+#set root path for pydeutmr repo
+ROOT = "/home/ricky"
+sys.path.append(ROOT)
 from pydeutmr.pydeutmr.data import simulation_wrapper
 from pydeutmr.pydeutmr.models import downsample
 
 def display_DMI_res():
     """
-    Creates matplotlib visualization for reconstructions for different inital
-    DMI resolutions
+    Creates matplotlib visualization for reconstructions for based off
+    inital DMI resolutions (4, 12, 24)
     """
     SLICE = 60 - 1
     dmi_reses = [4, 12, 24]
@@ -36,18 +39,21 @@ def display_DMI_res():
     ground_truth = gt_header.get_fdata()[:, :, :, 0]
     ground_truth = xp.array(normalize_matrix(ground_truth))
     if xp.__name__ == "cupy":
-        ground_truth = ground_truth.get()[:, :, SLICE]
+        ground_truth = ground_truth.get()
+    ground_truth2D = ground_truth[:, :, SLICE]
     # Structural Data
     structural_header = nib.as_closest_canonical(nib.load(
         "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/2mm_t1.nii.gz"))
     structural_data = structural_header.get_fdata()
     structural_data = xp.array(normalize_matrix(structural_data))
+
     
-    ax[0][0].imshow(ground_truth, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+    ax[0][0].imshow(ground_truth2D, vmin=0, vmax=ground_truth2D.max(), cmap='Greys_r')
     ax[0][0].set_title("GT/Struct")
-    ax[0][0].set_ylabel("Glx Orig")
-    ax[1][0].imshow(structural_data.get()[:, :, SLICE], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
-    ax[1][0].set_ylabel("Glx Recon")
+    ax[0][0].set_ylabel("Simulated Data")
+    ax[1][0].imshow(structural_data.get()[:, :, SLICE], vmin=0, vmax=ground_truth2D.max(), cmap='Greys_r')
+    ax[1][0].set_ylabel("Reconstructions")
+    ax[2][1].set_ylabel("Upsample + Interpolation")
     for i in range(4):
         if i > 0:
             dmi_res = dmi_reses[i - 1]
@@ -55,16 +61,18 @@ def display_DMI_res():
             # Low Res Data
             low_res_data_header = nib.as_closest_canonical(nib.load(
                 f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_2_ds_{ds_factor}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi.nii.gz"))
-            low_res_data = low_res_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+            low_res_data = low_res_data_header.get_fdata()[:, :, :, 0]
             low_res_data = xp.array(normalize_matrix(low_res_data))
+            sized_low_res_data = low_res_data[::ds_factor, ::ds_factor, ::ds_factor]
             for j in range(3):
                 if j == 0:
                     if xp.__name__ == "cupy":
-                            show_data = low_res_data.get()
+                            show_data = sized_low_res_data.get()
                     else:
-                        show_data = low_res_data
-                    ax[j][i].imshow(show_data[:, :, SLICE//ds_factor], vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                        show_data = sized_low_res_data
+                    ax[j][i].imshow(show_data[:, :, SLICE//ds_factor], vmin=0, vmax=ground_truth2D.max(), cmap='Greys_r')
                     ax[j][i].set_title(f"{dmi_res}mm")
+                    
                     
                 elif j == 1:
                     # Reconstructions
@@ -72,17 +80,18 @@ def display_DMI_res():
                                     "img_name": f"DMI9_Glx_2mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
                     oper = anic.AnatomicReconstructor(
                         structural_data, 6e-3, 1e-3, 20000, True, save_options)
-                    recon = oper(low_res_data)
+                    recon = oper(sized_low_res_data)
                     if xp.__name__ == "cupy":
                         recon = recon.get()
                     recon = recon[:, :, SLICE]
                     ax[j][i].imshow(
-                        recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                        recon, vmin=0, vmax=ground_truth2D.max(), cmap='Greys_r')
+                    
                 else:
                     #Interpolations
                     if xp.__name__ == "cupy":
-                        low_res_data = low_res_data.get()
-                    interpolated_data = ndimage.zoom(low_res_data, (ds_factor, ds_factor, ds_factor), order=3)
+                        sized_low_res_data = sized_low_res_data.get()
+                    interpolated_data = ndimage.zoom(sized_low_res_data, (ds_factor, ds_factor, ds_factor), order=3)
                     interpolated_data = interpolated_data[:, :, SLICE]
                     ax[j][i].imshow(
                         interpolated_data, vmin=0, vmax=interpolated_data.max(), cmap='Greys_r')
@@ -92,7 +101,7 @@ def display_DMI_res():
 
 def display_prior_res():
     """
-    Explores the difference in reconstruction quality based on the anatomical prior
+    Explores the difference in reconstruction quality based on the anatomical prior resolution
     """
     SLICE = 60 - 1
     prior_reses = [2, 6, 4, 3, 2]
@@ -164,7 +173,7 @@ def display_prior_res():
                         recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
                     
     fig.tight_layout()
-    # fig.show()
+    fig.show()
 
 def display_prior_res_cont():
     """
@@ -257,7 +266,7 @@ def display_prior_res_cont():
 
 def display_prior_res_presentation():
     """
-    Formats the display 
+    Compares different prior resolutons based off their downsampling factors
     """
     SLICE = 60 - 1
     dses = [2, 3, 4, 6]
@@ -265,14 +274,6 @@ def display_prior_res_presentation():
     fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(12, 5))
     turn_axis_off(ax)
     for i in range(5):
-        # Ground Truth
-        gt_header = nib.as_closest_canonical(nib.load(
-            f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_2_ds_2_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi_gt.nii.gz"))
-        ground_truth = gt_header.get_fdata()[:, :, :, 0]
-        ground_truth = xp.array(normalize_matrix(ground_truth))
-        if xp.__name__ == "cupy":
-            ground_truth = ground_truth.get()[:, :, SLICE]
-
         for j in range(2):
             if i != 0:
                 ax[0][i].set_title(f"{ds_factor}x")    
@@ -280,18 +281,27 @@ def display_prior_res_presentation():
             ds_factor = dses[i - 1]
             prior_res = dmi_res//ds_factor
 
+            # Ground Truth
+            gt_header = nib.as_closest_canonical(nib.load(
+                f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_{prior_res}_ds_{ds_factor}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi_gt.nii.gz"))
+            ground_truth = gt_header.get_fdata()[:, :, :, 0]
+            ground_truth = xp.array(normalize_matrix(ground_truth))
+            if xp.__name__ == "cupy":
+                ground_truth = ground_truth.get()
+            ground_truth_slice = ground_truth[:, :, (SLICE * 2)//prior_res//ds_factor]
+
             # Structural Data
             structural_header = nib.as_closest_canonical(nib.load(
                 f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_t1.nii.gz"))
             structural_data = structural_header.get_fdata()
             structural_data = xp.array(normalize_matrix(structural_data))
-            structural_data = structural_data
 
             # Low Res Data
             low_res_data_header = nib.as_closest_canonical(nib.load(
                 f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_{prior_res}_ds_{ds_factor}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi.nii.gz"))
             low_res_data = low_res_data_header.get_fdata(
-            )[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+            )[:, :, :, 0]
+            low_res_data = low_res_data[::ds_factor, ::ds_factor, ::ds_factor]
             low_res_data = xp.array(normalize_matrix(low_res_data))
 
             if i == 0:
@@ -306,12 +316,11 @@ def display_prior_res_presentation():
                 else:
                     show_data = show_data[:, :, int(SLICE/120 * 10)]
                 ax[j][i].imshow(show_data, vmin=0,
-                                vmax=ground_truth.max(), cmap='Greys_r')
+                                vmax=ground_truth_slice.max(), cmap='Greys_r')
                 ax[j][i].set_ylabel(f"{dmi_res}mm")
                 
             else:
                 # Reconstructions
-                print(prior_res, ds_factor, dmi_res)
                 save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
                                 "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
                 oper = anic.AnatomicReconstructor(
@@ -321,10 +330,10 @@ def display_prior_res_presentation():
                     recon = recon.get()
                 recon = recon[:, :, (SLICE * 2)//prior_res]
                 ax[j][i].imshow(
-                    recon, vmin=0, vmax=ground_truth.max(), cmap='Greys_r')
+                    recon, vmin=0, vmax=ground_truth_slice.max(), cmap='Greys_r')
                     
     fig.tight_layout()
-    # fig.show()
+    fig.show()
 
 def display_MR_contrast():
     """
@@ -346,7 +355,6 @@ def display_MR_contrast():
                 f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/2mm_{contrasts[i - 2]}.nii.gz"))
             structural_data = structural_header.get_fdata()
             structural_data = xp.array(normalize_matrix(structural_data))
-            structural_data = structural_data
 
         for j in range(3):
             # Top Row shows structural data
@@ -433,6 +441,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     #Create Plot
     fig, ax = plt.subplots(nrows=2, ncols=5, figsize=(10, 7))
     turn_axis_off(ax)
+
     # Ground Truth
     gt_header = nib.as_closest_canonical(nib.load(
         f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_0.2_seed_1234/dmi_gt.nii.gz"))
@@ -440,6 +449,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     ground_truth = xp.array(normalize_matrix(ground_truth))
     if xp.__name__ == "cupy":
         ground_truth = ground_truth.get()[:, :, (display_slice * 2)//prior_res]
+
     # Structural Data
     structural_header = nib.as_closest_canonical(nib.load(
         f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_t1.nii.gz"))
@@ -454,6 +464,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     for i in range(5):
         if i > 0:
             noise = noise_levels[i - 1]
+
             # Low Res Data
             low_res_data_header = nib.as_closest_canonical(nib.load(
                 f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_{noise}_seed_1234/dmi.nii.gz"))
@@ -486,7 +497,8 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
 
 def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num_iter: int = 20,):
     """
-    Examines how noise can affect the reconstruction by generating 20 different noise patterns and displaying a standard deviation
+    Examines how noise can affect the reconstruction by generating 20 different noise patterns
+    and displaying the standard deviation and error
     """
     #Set Parameters
     if dmi_type == "Glx":
@@ -504,6 +516,7 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
         dmi_res = res[0]
         prior_res = res[1]
         ds_factor = dmi_res//prior_res
+
         #Ground Truth
         gt_header = nib.as_closest_canonical(nib.load(
             f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{dmi_type}_pt9_vs_{prior_res}_ds_{ds_factor}_{dmi_settings}_noise_0.2_seed_1234/dmi_gt.nii.gz"))
@@ -581,7 +594,7 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
         ax[0][4].set_title("Error")
 
     fig.tight_layout()
-    # fig.show()
+    fig.show()
 
 def display_in_vivo():
     """
@@ -590,18 +603,21 @@ def display_in_vivo():
     display_slice = 68 - 1
     prior_res = 3
     dmi_res = 15
-    ds_factor = 15//3
+    ds_factor = dmi_res//prior_res
     contrasts = [("Glx","project_data/In_Vivo/Patient C/glx.nii.gz"), ("Lac", "project_data/In_Vivo/Patient C/lac.nii.gz"), ("LacGlx", "project_data/In_Vivo/Patient C/lac_glx_ratio.nii.gz")]
 
     fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(10, 7))
     turn_axis_off(ax)
     for i in range(3):
+        #Uncomment and change plt.subplots if you want to display anatomical prior 
         # if i == 0:
             # Structural Data
             structural_header = nib.as_closest_canonical(nib.load(
                 "project_data/In_Vivo/Patient C/t1.nii.gz"))
             structural_data = structural_header.get_fdata()
             structural_data = xp.array(normalize_matrix(structural_data))
+            if xp.__name__ == "cupy":
+                structural_data = structural_data.get()
             structural_data = downsample(downsample(downsample(structural_data, prior_res, axis=0),
                             prior_res, axis=1), prior_res, axis=2)
             structural_data = xp.array(normalize_matrix(structural_data))
@@ -621,6 +637,8 @@ def display_in_vivo():
             low_res_data_header = nib.as_closest_canonical(nib.load(contrast_code))
             low_res_data = low_res_data_header.get_fdata()
             low_res_data = xp.array(normalize_matrix(low_res_data))
+            if xp.__name__ == "cupy":
+                low_res_data = low_res_data.get()
             low_res_data = downsample(downsample(downsample(low_res_data, prior_res, axis=0),
                             prior_res, axis=1), prior_res, axis=2)
             low_res_data = xp.array(normalize_matrix(low_res_data))
@@ -652,12 +670,14 @@ def display_in_vivo():
                         recon = recon.get()
                     ax[j][i].imshow(recon, "Greys_r", vmin=0, vmax=structural_data.max())
                     if i == 0:
-                        ax[j][i].set_ylabel("Reconstructions")
-    print(structural_data.max(), recon.max(), low_res_data.max())             
+                        ax[j][i].set_ylabel("Reconstructions")        
     fig.tight_layout()
     fig.show()
 
 def turn_axis_off(axes: np.ndarray):
+    """
+    Turns off the axis ticks while preseving the labels
+    """
     for ax in axes.flat:
         ax.tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
         ax.spines['left'].set_visible(False)
@@ -665,39 +685,46 @@ def turn_axis_off(axes: np.ndarray):
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
 
-def stdev_masked_area(image, mask, mask_value):
+def mse_masked_area(image: xp.ndarray, ground_truth: xp.ndarray, prior_res: int, mask_value: int =8):
     """
-    Given an image and a masked area calculates the standard deviation of the pixels inside of the masked area
+    Given an image and a masked area calculates the MSE of the pixels inside of the masked area
+    Work in progress
     """
-    masked = image * (mask == mask_value)
-    mask_avg = xp.mean(masked)
-    return ((xp.sum(masked - mask_avg)) ** 2 / masked.size) ** 0.5
+    #Segmentation
+    seg_header = nib.as_closest_canonical(nib.load(
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_seg.nii.gz"))
+    mask = seg_header.get_fdata()
+
+    SLICE = 59 * 2
+
+    fig, ax = plt.subplots(1, 3)
+    if xp.__name__ == "cupy" and isinstance(image, xp.ndarray):
+        image = image.get()
+    m_image = image * (mask) #>= mask_value)
+    m_gt = ground_truth * (mask) #>= mask_value)
+    ax[0].imshow(m_image[:, :, SLICE//prior_res], "Greys_r")
+    ax[1].imshow(m_gt[:, :, SLICE//prior_res], "Greys_r")
+    ax[2].imshow((mask >= mask_value)[:, :, SLICE//prior_res], "Greys_r")
+    fig.show()
+    gt_avg = xp.mean(m_gt)
+    # print("gt", gt_avg)
+    image_avg = xp.mean(m_image)
+    # print("image", image_avg)
+    return (xp.sum(m_gt - m_image)) ** 2 / m_image.size
     
 
-
 if __name__ == "__main__":
-    # display_DMI_res()
-    # display_prior_res()
-    # display_prior_res_cont()
-    # display_prior_res_presentation()
-    # display_MR_contrast()
-    # Lac = [0, 0.233, 0.33, 0.466]
-    # Glx = [0, 0.1414, 0.2, 0.2828]
-    # display_noise_effect(Lac, "Lac", 6, 24, 60)
-    # display_noise_effect(Glx, "Glx", 6, 24, 60)
-    # display_noise_stats(0.2, "Glx", 60)
-    # display_noise_stats(0.33, "Lac", 60)
+    display_DMI_res()
+    display_prior_res()
+    display_prior_res_cont()
+    display_prior_res_presentation()
+    display_MR_contrast()
+    Lac = [0, 0.233, 0.33, 0.466]
+    Glx = [0, 0.1414, 0.2, 0.2828]
+    display_noise_effect(Lac, "Lac", 6, 24, 60)
+    display_noise_effect(Glx, "Glx", 6, 24, 60)
+    display_noise_stats(0.2, "Glx", 60)
+    display_noise_stats(0.33, "Lac", 60)
     display_in_vivo()
-    # gt_header = nib.as_closest_canonical(nib.load(
-    #     "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_2_ds_2_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0_seed_1234/dmi_gt.nii.gz"))
-    # ground_truth = gt_header.get_fdata()[:, :, :, 0]
-    # ground_truth = xp.array(normalize_matrix(ground_truth))
 
-    # header = nib.as_closest_canonical(nib.load("project_data/BraTS_Data/DMI_Simulations/BraTS20_Training_009/BraTS20_Training_009_seg.nii"))
-    # data = np.flip(normalize_matrix(header.get_fdata()))
-    # image = data[:, :, 78]
-    # fig, ax = plt.subplots()
-    # ax.imshow(image, "Greys_r", vmin=0, vmax=ground_truth.max())
-    # ax.axis("off")
-    # fig.show()
-    plt.savefig("project_data/Project_Visualizations/display_in_vivo.png", dpi=300, bbox_inches='tight', pad_inches=0.0)
+    # plt.savefig("project_data/Project_Visualizations/", dpi=300, bbox_inches='tight', pad_inches=0.0)
