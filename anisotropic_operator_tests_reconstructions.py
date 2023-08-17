@@ -42,35 +42,6 @@ def normalize_matrix(matrix):
     m_max = matrix.max()
     return matrix/m_max
 
-def check_lambda_on_mse(ground_truth, structural_data, lambda_min, intervals, lambda_num, max_iterations, saving_options):
-    """
-    Plots MSE score by lamda value
-    """
-    lam = lambda_min
-    op = anic.AnatomicReconstructor(_structural_data, (8,8), lam, 0.0016, 1000, True, saving_options)
-    x = op(_ground_truth)
-    lambdas = []
-    MSEs = []
-
-    for i in range(lambda_num):
-        lam = i * intervals
-        lambdas.append(lam)
-        gproxy = sp.prox.L1Reg(op.oshape, lam)
-        alg = sp.app.LinearLeastSquares(A, y, proxg=gproxy, G=op, max_iter=max_iterations)
-        MSE = find_mse(ground_truth, alg.run())
-        MSEs.append(MSE)
-    
-    x_axis = lambdas
-    y_axis = MSEs
-
-    plt.plot(x_axis, y_axis)
-    plt.title('Lambda vs MSE')
-    plt.xlabel('lambdas')
-    plt.ylabel('MSE')
-    plt.show()
-
-    return (lambdas, MSEs)
-
 def diff_images(ground_truth, oper: anic.AnatomicReconstructor, variables, variable):
     """
     Shows the difference between the ground truth and the reconstruction

@@ -48,14 +48,6 @@ class ProjectionOperator(sp.linop.Linop):
         """
         return self._eta
 
-    #Don't understand the need for this
-    @xi.setter
-    def xi(self, value: xp.ndarray):
-        """
-        Allows for xi to be adjusted outside operator
-        """
-        self._xi = value
-
     @eta.setter
     def eta(self, value: float):
         """
@@ -90,5 +82,4 @@ def get_xi(v: xp.ndarray, eta: float):
     """
     gradient_v = sp.linop.FiniteDifference(v.shape)(v)
     xi = gradient_v / xp.sqrt(eta ** 2 + xp.linalg.norm(gradient_v, axis=0) ** 2)
-    # import ipdb; ipdb.set_trace()
     return xi

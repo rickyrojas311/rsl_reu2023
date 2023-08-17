@@ -53,7 +53,6 @@ def downsample_average(iarray, factor: tuple[int]):
             downsampling_factor = 1
         arrays = []
         bucket_size = int(np.ceil(iarray.shape[dim]/downsampling_factor))
-        # import ipdb; ipdb.set_trace()
         split_array = xp.array_split(iarray, bucket_size, axis=dim)
         for array in split_array:
             arrays.append(xp.mean(array, axis=dim))
@@ -80,7 +79,6 @@ class AverageUpsampling(sp.linop.Linop):
         ishape (tuple of ints): Input shape.
         factor (tuple of ints): Upsampling factor.
         shift (None of tuple of ints): Shifts before up-sampling.
-
     """
 
     def __init__(self, oshape: tuple[int], factors: tuple[int]):
