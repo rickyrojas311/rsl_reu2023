@@ -315,7 +315,35 @@ def compare_3D_downsamplings():
     fig.tight_layout()
     fig.show()
 
-# if __name__ == "__main__":
+def test_anistropic_class():
+    #Ground Truth
+    gt_header = nib.as_closest_canonical(nib.load("project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_6_ds_4_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0.2_seed_1234/dmi_gt.nii.gz"))
+    ground_truth = gt_header.get_fdata()[:, :, :, 0]
+    ground_truth = xp.array(normalize_matrix(ground_truth))
+
+    # Structural Data
+    structural_header = nib.as_closest_canonical(nib.load(
+        "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/6mm_t1.nii.gz"))
+    structural_data = structural_header.get_fdata()
+    structural_data = xp.array(normalize_matrix(structural_data))
+
+    # Low Res Data
+    ds_factor = 4
+    low_res_data_header = nib.as_closest_canonical(nib.load(
+                "project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/Glx_pt9_vs_6_ds_4_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0.2_seed_1234/dmi.nii.gz"))
+    low_res_data = low_res_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
+    low_res_data = xp.array(normalize_matrix(low_res_data))
+
+    image_data={"pt_code": "BraTS009", "dmi_type": "Glx", "contrast_type": "t1", "prior_res": 6, "dmi_res": 24, "noise_level":0.2,
+                        "noise_seed": 1234}
+    save_options = {"given_path": "/home/ricky/rsl_reu2023/project_data/Abstract_Recons", "img_data": image_data, "img_header": gt_header}
+    oper = anic.AnatomicReconstructor(structural_data, 6e-3, 1e-3, 2000, True, save_options)
+    recon = oper(low_res_data)
+    if xp.__name__ == "cupy":
+        recon = recon.get()
+
+if __name__ == "__main__":
+    test_anistropic_class()
     # compare_3D_downsamplings()
     # compare_aquisitions()
     # _ground_header = nib.as_closest_canonical(nib.load(r"project_data/BraTS_Data/DS_Experiments/tumor_0.5/DMI_patient_9_ds_11_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0/dmi_gt.nii.gz"))

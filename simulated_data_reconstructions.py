@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from scipy import ndimage
 
 import anisotropic_class as anic
-from anisotropic_operator import normalize_matrix
+from rsl_reu2023.anisotropic_operator_tests_reconstructions import normalize_matrix
 
 
 def display_DMI_res():
@@ -743,7 +743,7 @@ def mse_masked_area(image: xp.ndarray, ground_truth: xp.ndarray, prior_res: int,
 
 
 if __name__ == "__main__":
-    # display_DMI_res()
+    display_DMI_res()
     # display_prior_res()
     # display_prior_res_cont()
     # display_prior_res_presentation()
@@ -755,5 +755,4 @@ if __name__ == "__main__":
     # display_noise_stats(0.2, "Glx", 60)
     # display_noise_stats(0.33, "Lac", 60)
     # display_in_vivo()
-
     # plt.savefig("project_data/Project_Visualizations/", dpi=300, bbox_inches='tight', pad_inches=0.0)

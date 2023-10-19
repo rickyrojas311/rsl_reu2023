@@ -15,6 +15,7 @@ except ImportError:
 import numpy as np
 import sigpy as sp
 import nibabel as nib
+import pandas as pd
 
 import downsampling_subclass as spl
 import projection_operator_subclass as proj
@@ -24,14 +25,16 @@ class AnatomicReconstructor():
     """
     class to facilate anatomic reconstruction, apply on low res data
     """
-    def __init__(self, anatomical_data: xp.ndarray, given_lambda: float, given_eta: float, max_iter: int, normalize: bool = False, save_options: dict = None) -> None:
+    def __init__(self, anatomical_data: xp.ndarray, given_lambda: float, given_eta: float, iter_num: int, normalize: bool = False, save_options: dict = None) -> None:
         """
         Pass in needed information to set up reconstruction
 
         Input save options to save images to a folder
-        save_options={"given_path":, "img_name":, "img_header":}
+        save_options={"given_path":, "img_data":, "img_header":}
         given_path is the path to save the image to
-        img_name is a prefix to the image settings saved in the filename
+        image_data is a dictionary that writes image parameters to a csv
+            img_data={"pt_code":, "dmi_type":, "contrast_type":, "prior_res":, "dmi_res":, "noise_level":,
+                        "noise_seed":}
         img_header is the Nifity header file that will be saved with the image
         """
         if normalize:
@@ -39,23 +42,27 @@ class AnatomicReconstructor():
         else:
             self._anatomical_data = xp.array(anatomical_data)
 
-        self._given_lambda = given_lambda
-        self._given_eta = given_eta
-        self._max_iter = max_iter
-        self._normalize = normalize
+        self._img_data = {"lambda": given_lambda, "eta": given_eta, "iter_num": iter_num, "normalize": normalize}
 
         self._low_res_data = None
         self._downsampling_factor = None
 
+        #Sets up saving settings and csv
         if save_options is not None:
             try:
                 self._path = pathlib.Path(save_options["given_path"])
                 self._img_header = save_options["img_header"]
-                self._img_name = save_options["img_name"]
+                self._img_data.update(save_options["img_data"])
             except KeyError as mal:
                 raise ValueError(
                     f"malformed save_options input {save_options}, image failed to save") from mal
+            
             self.saving = True
+            filepath = pathlib.Path.joinpath(self._path, "recon_data.csv")
+            if not pathlib.Path.exists(filepath):
+                self._recon_csv = pd.DataFrame(columns=["pt_code", "dmi_type", "contrast_type", "prior_res", "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize"])
+            else:
+                self._recon_csv = pd.read_csv(filepath, index_col=0)
         else:
             self.saving = False
 
@@ -92,28 +99,28 @@ class AnatomicReconstructor():
         """
         return set lambda
         """
-        return self._given_lambda
+        return self._img_data["lambda"]
 
     @property
     def given_eta(self):
         """
         returns current eta value
         """
-        return self._given_eta
+        return self._img_data["eta"]
 
     @property
-    def max_iter(self):
+    def iter_num(self):
         """
         returns level of iterations set
         """
-        return self._max_iter
+        return self._img_data["iter_num"]
 
     @property
     def normalize(self):
         """
         sets if the AnatomicReconstructor will normalize data by default
         """
-        return self._normalize
+        return self._img_data["normalize"]
 
     @property
     def given_path(self):
@@ -138,22 +145,22 @@ class AnatomicReconstructor():
                 "saving_options were not set so no header is stored") from err
         
     @property
-    def img_name(self):
+    def img_data(self):
         """
-        Returns the name of the inputed image without the settings
+        Returns the dictionary of saved img data
         """
         try:
-            return self._img_name
+            return self._img_data
         except NameError as err:
             raise ValueError(
-                "saving_options were not set so no img_name is saved") from err
+                "saving_options were not set so no img_data is saved") from err
 
     @anatomical_data.setter
     def anatomical_data(self, value: xp.ndarray):
         """
         Allows for anatomical data to be adjusted 
         """
-        if self._normalize:
+        if self._img_data["normalize"]:
             self._anatomical_data = xp.array(normalize_matrix(value))
         else:
             self._anatomical_data = xp.array(value)
@@ -163,22 +170,22 @@ class AnatomicReconstructor():
         """
         Allows for low_res_data to be adjusted
         """
-        if self._normalize:
+        if self._img_data["normalize"]:
             self._low_res_data = xp.array(normalize_matrix(value))
         else:
             self._low_res_data = xp.array(value)
 
     @given_lambda.setter
     def given_lambda(self, value: float):
-        self._given_lambda = value
+        self._img_data["lambda"] = value
 
     @given_eta.setter
     def given_eta(self, value: float):
-        self._given_eta = value
+        self._img_data["eta"] = value
 
-    @max_iter.setter
-    def max_iter(self, value: int):
-        self._max_iter = value
+    @iter_num.setter
+    def iter_num(self, value: int):
+        self._img_data["iter_num"] = value
 
     @given_path.setter
     def given_path(self, value: str):
@@ -188,9 +195,9 @@ class AnatomicReconstructor():
     def img_header(self, value):
         self._img_header = value
 
-    @img_name.setter
-    def img_name(self, value):
-        self._img_name = value
+    @img_data.setter
+    def img_data(self, value: dict):
+        self._img_data = value
 
     def __call__(self, iarray) -> xp.ndarray:
         """
@@ -200,7 +207,7 @@ class AnatomicReconstructor():
         already constructed images
         """
         #normalizes input matrix if set
-        if self._normalize:
+        if self._img_data["normalize"]:
             self._low_res_data = xp.array(normalize_matrix(iarray))
         else:
             self._low_res_data = xp.array(iarray)
@@ -229,12 +236,12 @@ class AnatomicReconstructor():
         downsampled = self._low_res_data
         gradient_op = sp.linop.FiniteDifference(self._anatomical_data.shape)
         projection_op = proj.ProjectionOperator(
-            gradient_op.oshape, self._anatomical_data, eta=self._given_eta)
+            gradient_op.oshape, self._anatomical_data, eta=self._img_data["eta"])
         compose_op = sp.linop.Compose([projection_op, gradient_op])
-        gproxy = sp.prox.L1Reg(compose_op.oshape, self._given_lambda)
+        gproxy = sp.prox.L1Reg(compose_op.oshape, self._img_data["lambda"])
 
         alg = sp.app.LinearLeastSquares(
-            downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self.max_iter)
+            downsampler, downsampled, proxg=gproxy, G=compose_op, max_iter=self._img_data["iter_num"])
         result = alg.run()
         masked_result = result * (self._anatomical_data > 0.0001)
         if xp.__name__ == "cupy":
@@ -247,10 +254,10 @@ class AnatomicReconstructor():
         """
         recon_img = nib.Nifti1Image(
             img, self.img_header.affine, self.img_header.header)
-        filename = f"{self._img_name}_{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
-        if self.normalize:
-            filename += "_norm"
-        filename += ".nii"
+        filename = f"{len(self._recon_csv)}.nii"
+        self._recon_csv = pd.concat([self._recon_csv, pd.DataFrame(self.img_data, index=[0])], ignore_index=True)
+        csv_path = pathlib.Path.joinpath(self._path, "recon_data.csv")
+        self._recon_csv.to_csv(csv_path)
         save_path = self._path.joinpath(filename)
         nib.save(recon_img, save_path)
 
@@ -259,14 +266,37 @@ class AnatomicReconstructor():
         Checks if an image with the current settings has already been generated. 
         If so it returns the path otherwise it returns None
         """
-        filename = f"{self._img_name}_{self._low_res_data.ndim}D_lambda-{self._given_lambda}_eta-{self._given_eta}_iter-{self._max_iter}"
-        if self.normalize:
-            filename += "_norm"
-        filename += ".nii"
-        search_path = self._path.joinpath(filename)
-        if search_path.exists():
-            return search_path
-        return None
+        mask = pd.Series(True, index=self._recon_csv.index)
+        for column in self._recon_csv.columns:
+            if column not in self._img_data.keys():
+                mask &= (self._recon_csv[column].isna())
+            else:
+                mask &= (self._recon_csv[column] == self._img_data[column])
+        masked_rows = self._recon_csv[mask]
+        if len(masked_rows) == 0:
+            return None
+        if len(masked_rows) == 1:
+            return pathlib.Path.joinpath(self.given_path, f"{masked_rows.index[0]}.nii")
+        raise ValueError(
+            f"recon_csv at {self.given_path} has duplicate reconstructions at {masked_rows.index}")
+    
+    def calculate_seg_mse(self) -> float:
+        """
+        Calculates the mse of the reconstruction in the segmented area.
+        """
+        # patient_path = pathlib.Path.joinpath(self._path.parent, "BraTS_Data/DMI_Simulations/DMI/")
+        # if self.img_data["pt_code"] == "BraTS009":
+        #     patient_path = pathlib.Path.joinpath(patient_path, "patient_9")
+        # else:
+        #     raise ValueError(f"pt_code {self.img_data['pt_code']} not supported")
+        
+        #Ground_Truth
+        gt_header = nib.as_closest_canonical(nib.load(
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{self.img_data['dmi_type']}_pt9_vs_{self.img_data['prior_res']}_ds_{self.img_data['prior_res']//self.img_data['dmi_res']}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0.2_noise_{self.img_data['noise_level']}_seed_{self.img_data['noise_seed']}/dmi_gt.nii.gz"))
+        ground_truth = gt_header.get_fdata()[:, :, :, 0]
+        ground_truth = xp.array(normalize_matrix(ground_truth))
+        
+
 
 
 def normalize_matrix(matrix):
