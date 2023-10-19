@@ -33,7 +33,7 @@ class AnatomicReconstructor():
         save_options={"given_path":, "img_data":, "img_header":}
         given_path is the path to save the image to
         image_data is a dictionary that writes image parameters to a csv
-            img_data={"pt_code":, "dmi_type":, "contrast_type":, "prior_res":, "dmi_res":, "noise_level":,
+            img_data={"pt_type":, "pt_num":, "dmi_type":, "dmi_settings":, "contrast_type":, "prior_res":, "dmi_res":, "noise_level":,
                         "noise_seed":}
         img_header is the Nifity header file that will be saved with the image
         """
@@ -53,6 +53,7 @@ class AnatomicReconstructor():
                 self._path = pathlib.Path(save_options["given_path"])
                 self._img_header = save_options["img_header"]
                 self._img_data.update(save_options["img_data"])
+                self._stats = save_options["stats"]
             except KeyError as mal:
                 raise ValueError(
                     f"malformed save_options input {save_options}, image failed to save") from mal
@@ -60,7 +61,7 @@ class AnatomicReconstructor():
             self.saving = True
             filepath = pathlib.Path.joinpath(self._path, "recon_data.csv")
             if not pathlib.Path.exists(filepath):
-                self._recon_csv = pd.DataFrame(columns=["pt_code", "dmi_type", "contrast_type", "prior_res", "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize"])
+                self._recon_csv = pd.DataFrame(columns=["pt_type", "pt_num", "dmi_type", "dmi_settings", "contrast_type", "prior_res", "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize", "mse", "perc.accuracy"])
             else:
                 self._recon_csv = pd.read_csv(filepath, index_col=0)
         else:
@@ -222,8 +223,14 @@ class AnatomicReconstructor():
             if filename is not None:
                 img_header = nib.as_closest_canonical(nib.load(filename))
                 return xp.array(img_header.get_fdata())
-        reconstruction = self.run_reconstructor()
-        self.save_image(reconstruction)
+            reconstruction = self.run_reconstructor()
+            if self._stats:
+                stats = self.calculate_stats(reconstruction)
+                self.img_data["mse"] = stats[0]
+                self.img_data["perc.accuracy"] = stats[1]
+            self.save_image(reconstruction)
+        else:
+            reconstruction = self.run_reconstructor()
         return xp.array(reconstruction)
 
     def run_reconstructor(self):
@@ -280,23 +287,41 @@ class AnatomicReconstructor():
         raise ValueError(
             f"recon_csv at {self.given_path} has duplicate reconstructions at {masked_rows.index}")
     
-    def calculate_seg_mse(self) -> float:
+    def calculate_stats(self, recon) -> float:
         """
-        Calculates the mse of the reconstruction in the segmented area.
+        Calculates the mse and % accuracy of the reconstruction in the segmented area.
+        return (mse, %accuracy)
         """
-        # patient_path = pathlib.Path.joinpath(self._path.parent, "BraTS_Data/DMI_Simulations/DMI/")
-        # if self.img_data["pt_code"] == "BraTS009":
-        #     patient_path = pathlib.Path.joinpath(patient_path, "patient_9")
-        # else:
-        #     raise ValueError(f"pt_code {self.img_data['pt_code']} not supported")
-        
         #Ground_Truth
         gt_header = nib.as_closest_canonical(nib.load(
-        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{self.img_data['dmi_type']}_pt9_vs_{self.img_data['prior_res']}_ds_{self.img_data['prior_res']//self.img_data['dmi_res']}_gm_3.0_wm_1.0_tumor_0.5_ed_2.0_noise_0.2_noise_{self.img_data['noise_level']}_seed_{self.img_data['noise_seed']}/dmi_gt.nii.gz"))
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_{self.img_data['pt_num']}/{self.img_data['dmi_type']}_pt{self.img_data['pt_num']}_vs_2_ds_6_{self.img_data['dmi_settings']}_noise_{self.img_data['noise_level']}_seed_{self.img_data['noise_seed']}/dmi_gt.nii.gz"))
         ground_truth = gt_header.get_fdata()[:, :, :, 0]
-        ground_truth = xp.array(normalize_matrix(ground_truth))
-        
+        ground_truth = xp.array(normalize_matrix(ground_truth)).get()
 
+        #Segmentation
+        seg_header = nib.as_closest_canonical(nib.load(
+            f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_{self.img_data['pt_num']}/2mm_seg.nii.gz"
+        ))
+        seg = seg_header.get_fdata()
+        print(seg.max())
+        seg = xp.array(normalize_matrix(seg))
+        print(seg.max())
+
+        #Recon
+        upscaling_factor = self.img_data["prior_res"]//2
+        upsampler = spl.AverageUpsampling(seg.shape, [upscaling_factor, upscaling_factor, upscaling_factor])
+        recon = upsampler(recon)
+
+        mask = (seg == 1).get()
+        masked_ground_truth = ground_truth[mask]
+        masked_recon = recon[mask]
+
+        squared_diff = (masked_ground_truth - masked_recon) ** 2
+
+        ideal_value = masked_ground_truth.mean()
+        average_value = masked_recon.mean()
+
+        return (np.mean(squared_diff), (ideal_value - average_value)/ideal_value * 100)
 
 
 def normalize_matrix(matrix):

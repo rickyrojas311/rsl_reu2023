@@ -334,9 +334,9 @@ def test_anistropic_class():
     low_res_data = low_res_data_header.get_fdata()[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
     low_res_data = xp.array(normalize_matrix(low_res_data))
 
-    image_data={"pt_code": "BraTS009", "dmi_type": "Glx", "contrast_type": "t1", "prior_res": 6, "dmi_res": 24, "noise_level":0.2,
+    image_data={"pt_type": "BraTS", "pt_num": 9, "dmi_type": "Glx", "dmi_settings": "gm_3.0_wm_1.0_tumor_0.5_ed_2.0", "contrast_type": "t1", "prior_res": 6, "dmi_res": 24, "noise_level":0.2,
                         "noise_seed": 1234}
-    save_options = {"given_path": "/home/ricky/rsl_reu2023/project_data/Abstract_Recons", "img_data": image_data, "img_header": gt_header}
+    save_options = {"given_path": "/home/ricky/rsl_reu2023/project_data/Abstract_Recons", "img_data": image_data, "img_header": gt_header, "stats": True}
     oper = anic.AnatomicReconstructor(structural_data, 6e-3, 1e-3, 2000, True, save_options)
     recon = oper(low_res_data)
     if xp.__name__ == "cupy":
