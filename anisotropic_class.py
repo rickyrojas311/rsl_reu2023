@@ -30,7 +30,7 @@ class AnatomicReconstructor():
         Pass in needed information to set up reconstruction
 
         Input save options to save images to a folder
-        save_options={"given_path":, "img_data":, "img_header":}
+        save_options={"given_path":, "img_data":, "img_header":, "stats":}
         given_path is the path to save the image to
         image_data is a dictionary that writes image parameters to a csv
             img_data={"pt_type":, "pt_num":, "dmi_type":, "dmi_settings":, "contrast_type":, "prior_res":, "dmi_res":, "noise_level":,
