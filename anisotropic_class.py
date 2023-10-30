@@ -274,12 +274,14 @@ class AnatomicReconstructor():
         If so it returns the path otherwise it returns None
         """
         mask = pd.Series(True, index=self._recon_csv.index)
-        for column in self._recon_csv.columns:
+        attributes = self._recon_csv[["pt_type", "pt_num", "dmi_type", "dmi_settings", "contrast_type", "prior_res", 
+                                      "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize"]]
+        for column in attributes.columns:
             if column not in self._img_data.keys():
-                mask &= (self._recon_csv[column].isna())
+                mask &= (attributes[column].isna())
             else:
-                mask &= (self._recon_csv[column] == self._img_data[column])
-        masked_rows = self._recon_csv[mask]
+                mask &= (attributes[column] == self._img_data[column])
+        masked_rows = attributes[mask]
         if len(masked_rows) == 0:
             return None
         if len(masked_rows) == 1:
