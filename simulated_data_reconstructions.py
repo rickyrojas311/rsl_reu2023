@@ -79,8 +79,9 @@ def display_DMI_res():
 
                 elif j == 1:
                     # Reconstructions
-                    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                    "img_name": f"DMI9_Glx_2mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
+                    img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": "Glx", "dmi_settings": "gm_3.0_wm_1.0_tumor_0.5_ed_2.0", "contrast_type": "t1", 
+                              "prior_res": 2, "dmi_res": dmi_res, "noise_level": 0, "noise_seed": 1234}
+                    save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
                     oper = anic.AnatomicReconstructor(
                         structural_data, 6e-3, 1e-3, 20000, True, save_options)
                     recon = oper(sized_low_res_data)
@@ -108,6 +109,7 @@ def display_prior_res():
     """
     Explores the difference in reconstruction quality based on the anatomical prior resolution
     """
+    print("display_prior_res")
     SLICE = 60 - 1
     prior_reses = [2, 6, 4, 3, 2]
     dmi_reses = [12, 24]
@@ -128,7 +130,6 @@ def display_prior_res():
             f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{prior_res}mm_t1.nii.gz"))
         structural_data = structural_header.get_fdata()
         structural_data = xp.array(normalize_matrix(structural_data))
-        structural_data = structural_data
 
         for j in range(3):
             if j == 0:
@@ -166,8 +167,9 @@ def display_prior_res():
 
                 else:
                     # Reconstructions
-                    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                    "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
+                    img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": "Glx", "dmi_settings": "gm_3.0_wm_1.0_tumor_0.5_ed_2.0", "contrast_type": "t1", 
+                              "prior_res": prior_res, "dmi_res": dmi_res, "noise_level": 0, "noise_seed": 1234}
+                    save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
                     oper = anic.AnatomicReconstructor(
                         structural_data, 6e-3, 1e-3, 20000, True, save_options)
                     recon = oper(low_res_data)
@@ -236,8 +238,9 @@ def display_prior_res_cont():
 
                     else:
                         # Reconstructions
-                        save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                        "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
+                        img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": "Glx", "dmi_settings": "gm_3.0_wm_1.0_tumor_0.5_ed_2.0", "contrast_type": "t1", 
+                              "prior_res": prior_res, "dmi_res": dmi_res, "noise_level": 0, "noise_seed": 1234}
+                        save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
                         oper = anic.AnatomicReconstructor(
                             structural_data, 6e-3, 1e-3, 20000, True, save_options)
                         recon = oper(low_res_data)
@@ -251,8 +254,8 @@ def display_prior_res_cont():
                     if i != 0:
                         # Reconstructions off reconstructions, needs higher res structural data
                         new_res = prior_res//((j - 1) * 2)
-                        save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                        "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed_{j - 1}", "img_header": gt_header}
+                        # save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
+                        #                 "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed_{j - 1}", "img_header": gt_header}
                         structural_header = nib.as_closest_canonical(nib.load(
                             f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_9/{new_res}mm_t1.nii.gz"))
                         structural_data = structural_header.get_fdata()
@@ -275,6 +278,7 @@ def display_prior_res_presentation():
     """
     Compares different prior resolutons based off their downsampling factors
     """
+    print("res_presentation")
     SLICE = 60 - 1
     dses = [2, 3, 4, 6]
     dmi_reses = [12, 24]
@@ -329,8 +333,9 @@ def display_prior_res_presentation():
 
             else:
                 # Reconstructions
-                save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                "img_name": f"DMI9_Glx_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
+                img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": "Glx", "dmi_settings": "gm_3.0_wm_1.0_tumor_0.5_ed_2.0", "contrast_type": "t1", 
+                              "prior_res": prior_res, "dmi_res": dmi_res, "noise_level": 0, "noise_seed": 1234}
+                save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
                 oper = anic.AnatomicReconstructor(
                     structural_data, 6e-3, 1e-3, 20000, True, save_options)
                 recon = oper(low_res_data)
@@ -412,8 +417,8 @@ def display_MR_contrast():
 
                     else:
                         # Reconstructions
-                        save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                        "img_name": f"DMI9_{dmi_type}_2mmPrior_12mmDMI_0Noise_1234Seed_{contrasts[i -2]}", "img_header": gt_header}
+                        # save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
+                        #                 "img_name": f"DMI9_{dmi_type}_2mmPrior_12mmDMI_0Noise_1234Seed_{contrasts[i -2]}", "img_header": gt_header}
                         oper = anic.AnatomicReconstructor(
                             structural_data, 6e-3, 1e-3, 20000, True, save_options)
                         recon = oper(low_res_data)
@@ -431,6 +436,7 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
     """
     Examines how noise can affect the reconstruction
     """
+    print("noise_effect")
     # Set Parameters
     if dmi_type == "Glx":
         dmi_settings = "gm_3.0_wm_1.0_tumor_0.5_ed_2.0"
@@ -494,8 +500,9 @@ def display_noise_effect(noise_levels: list[int], dmi_type: str, prior_res: int,
 
                 else:
                     # Reconstructions
-                    save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                                    "img_name": f"DMI9_{dmi_type}_{prior_res}mmPrior_{dmi_res}mmDMI_{noise}Noise_1234Seed", "img_header": gt_header}
+                    img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": dmi_type, "dmi_settings": dmi_settings, "contrast_type": "t1", 
+                              "prior_res": prior_res, "dmi_res": dmi_res, "noise_level": noise, "noise_seed": 1234}
+                    save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
                     oper = anic.AnatomicReconstructor(
                         structural_data, 6e-3, 1e-3, 20000, True, save_options)
                     recon = oper(low_res_data)
@@ -514,6 +521,7 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
     Examines how noise can affect the reconstruction by generating 20 different noise patterns
     and displaying the standard deviation and error
     """
+    print("noise_stats")
     # Set Parameters
     if dmi_type == "Glx":
         dmi_settings = "gm_3.0_wm_1.0_tumor_0.5_ed_2.0"
@@ -556,8 +564,9 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
         )[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
         noiseless_data = xp.array(normalize_matrix(noiseless_data))
         noiseless_data = xp.array(normalize_matrix(noiseless_data))
-        save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                        "img_name": f"DMI9_{dmi_type}_{prior_res}mmPrior_{dmi_res}mmDMI_0Noise_1234Seed", "img_header": gt_header}
+        img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": dmi_type, "dmi_settings": dmi_settings, "contrast_type": "t1", 
+                              "prior_res": prior_res, "dmi_res": dmi_res, "noise_level": 0, "noise_seed": 1234}
+        save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
         oper = anic.AnatomicReconstructor(
             structural_data, 6e-3, 1e-3, 20000, True, save_options)
         noiseless_recon = oper(noiseless_data)
@@ -573,9 +582,9 @@ def display_noise_stats(noise_level: int, dmi_type: str, display_slice: int, num
             noise_data = noise_data_header.get_fdata(
             )[:, :, :, 0][::ds_factor, ::ds_factor, ::ds_factor]
             noise_data = xp.array(normalize_matrix(noiseless_data))
-
-            save_options = {"given_path": "project_data/BraTS_Reconstructions/Nifity_Files",
-                            "img_name": f"DMI9_{dmi_type}_{prior_res}mmPrior_{dmi_res}mmDMI_{noise_level}Noise_{seed}Seed", "img_header": gt_header}
+            img_data={"pt_type": "BraTS", "pt_id": "9", "dmi_type": dmi_type, "dmi_settings": dmi_settings, "contrast_type": "t1", 
+                              "prior_res": prior_res, "dmi_res": dmi_res, "noise_level": noise_level, "noise_seed": seed}
+            save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": gt_header, "stats": True}
             oper = anic.AnatomicReconstructor(
                 structural_data, 6e-3, 1e-3, 20000, True, save_options)
             noise_recon = oper(noise_data)
@@ -622,6 +631,7 @@ def display_in_vivo():
     """
     Displays the in-vivo data collected from patient C
     """
+    print("in_vivo")
     display_slice = 68 - 1
     prior_res = 3
     dmi_res = 15
@@ -685,8 +695,10 @@ def display_in_vivo():
                     ax[j][i].set_ylabel("Original Data")
             else:
                 # Reconstruction
-                save_options = {"given_path": "project_data/In_Vivo_Reconstructions",
-                                "img_name": f"PtC_{contrast_type}_vs_3_ds_5", "img_header": structural_header}
+                img_data={"pt_type": "In Vivo", "pt_id": "C", "dmi_type": contrast_type, "prior_res": 3, "dmi_res": 5}
+                save_options={"given_path": "project_data/Abstract_Recons", "img_data": img_data, "img_header": structural_header, "stats": False}
+                # save_options = {"given_path": "project_data/In_Vivo_Reconstructions",
+                #                 "img_name": f"PtC_{contrast_type}_vs_3_ds_5", "img_header": structural_header}
                 oper = anic.AnatomicReconstructor(
                     structural_data, 6e-3, 1e-3, 20000, True, save_options)
                 recon = oper(low_res_data)
@@ -734,7 +746,7 @@ def mse_masked_area(image: xp.ndarray, ground_truth: xp.ndarray, prior_res: int,
     ax[0].imshow(m_image[:, :, SLICE//prior_res], "Greys_r")
     ax[1].imshow(m_gt[:, :, SLICE//prior_res], "Greys_r")
     ax[2].imshow((mask >= mask_value)[:, :, SLICE//prior_res], "Greys_r")
-    fig.show()
+    # fig.show()
     gt_avg = xp.mean(m_gt)
     # print("gt", gt_avg)
     image_avg = xp.mean(m_image)
@@ -743,16 +755,16 @@ def mse_masked_area(image: xp.ndarray, ground_truth: xp.ndarray, prior_res: int,
 
 
 if __name__ == "__main__":
-    display_DMI_res()
-    # display_prior_res()
-    # display_prior_res_cont()
+    # # display_DMI_res()
+    display_prior_res()
+    # # display_prior_res_cont()
     # display_prior_res_presentation()
-    # display_MR_contrast()
-    # Lac = [0, 0.233, 0.33, 0.466]
+    # # display_MR_contrast()
+    # # Lac = [0, 0.233, 0.33, 0.466]
     # Glx = [0, 0.1414, 0.2, 0.2828]
-    # display_noise_effect(Lac, "Lac", 6, 24, 60)
+    # # display_noise_effect(Lac, "Lac", 6, 24, 60)
     # display_noise_effect(Glx, "Glx", 6, 24, 60)
     # display_noise_stats(0.2, "Glx", 60)
-    # display_noise_stats(0.33, "Lac", 60)
+    # # display_noise_stats(0.33, "Lac", 60)
     # display_in_vivo()
-    # plt.savefig("project_data/Project_Visualizations/", dpi=300, bbox_inches='tight', pad_inches=0.0)
+    plt.savefig("project_data/Project_Visualizations/display_prior_res_abstract.png", dpi=300, bbox_inches='tight', pad_inches=0.0)

@@ -33,7 +33,7 @@ class AnatomicReconstructor():
         save_options={"given_path":, "img_data":, "img_header":, "stats":}
         given_path is the path to save the image to
         image_data is a dictionary that writes image parameters to a csv
-            img_data={"pt_type":, "pt_num":, "dmi_type":, "dmi_settings":, "contrast_type":, "prior_res":, "dmi_res":, "noise_level":,
+            img_data={"pt_type":, "pt_id":, "dmi_type":, "dmi_settings":, "contrast_type":, "prior_res":, "dmi_res":, "noise_level":,
                         "noise_seed":}
         img_header is the Nifity header file that will be saved with the image
         """
@@ -61,7 +61,7 @@ class AnatomicReconstructor():
             self.saving = True
             filepath = pathlib.Path.joinpath(self._path, "recon_data.csv")
             if not pathlib.Path.exists(filepath):
-                self._recon_csv = pd.DataFrame(columns=["pt_type", "pt_num", "dmi_type", "dmi_settings", "contrast_type", "prior_res", "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize", "mse", "perc.accuracy"])
+                self._recon_csv = pd.DataFrame(columns=["pt_type", "pt_id", "dmi_type", "dmi_settings", "contrast_type", "prior_res", "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize", "mse", "perc.accuracy"])
             else:
                 self._recon_csv = pd.read_csv(filepath, index_col=0)
         else:
@@ -274,7 +274,7 @@ class AnatomicReconstructor():
         If so it returns the path otherwise it returns None
         """
         mask = pd.Series(True, index=self._recon_csv.index)
-        attributes = self._recon_csv[["pt_type", "pt_num", "dmi_type", "dmi_settings", "contrast_type", "prior_res", 
+        attributes = self._recon_csv[["pt_type", "pt_id", "dmi_type", "dmi_settings", "contrast_type", "prior_res",
                                       "dmi_res", "noise_level", "noise_seed", "lambda", "eta", "iter_num", "normalize"]]
         for column in attributes.columns:
             if column not in self._img_data.keys():
@@ -296,23 +296,33 @@ class AnatomicReconstructor():
         """
         #Ground_Truth
         gt_header = nib.as_closest_canonical(nib.load(
-        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_{self.img_data['pt_num']}/{self.img_data['dmi_type']}_pt{self.img_data['pt_num']}_vs_2_ds_6_{self.img_data['dmi_settings']}_noise_{self.img_data['noise_level']}_seed_{self.img_data['noise_seed']}/dmi_gt.nii.gz"))
+        f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_{self.img_data['pt_id']}/{self.img_data['dmi_type']}_pt{self.img_data['pt_id']}_vs_2_ds_6_{self.img_data['dmi_settings']}_noise_{self.img_data['noise_level']}_seed_{self.img_data['noise_seed']}/dmi_gt.nii.gz"))
         ground_truth = gt_header.get_fdata()[:, :, :, 0]
         ground_truth = xp.array(normalize_matrix(ground_truth)).get()
 
         #Segmentation
         seg_header = nib.as_closest_canonical(nib.load(
-            f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_{self.img_data['pt_num']}/2mm_seg.nii.gz"
+            f"project_data/BraTS_Data/DMI_Simulations/DMI/patient_{self.img_data['pt_id']}/2mm_seg.nii.gz"
         ))
         seg = seg_header.get_fdata()
-        print(seg.max())
         seg = xp.array(normalize_matrix(seg))
-        print(seg.max())
 
-        #Recon
-        upscaling_factor = self.img_data["prior_res"]//2
-        upsampler = spl.AverageUpsampling(seg.shape, [upscaling_factor, upscaling_factor, upscaling_factor])
-        recon = upsampler(recon)
+        if self.img_data["prior_res"] % 2 == 0:
+            #Recon
+            upscaling_factor = self.img_data["prior_res"]//2
+            upsampler = spl.AverageUpsampling(seg.shape, [upscaling_factor, upscaling_factor, upscaling_factor])
+            recon = upsampler(recon)
+
+        else:
+            #Recon
+            upscaling_factor = 240//recon.shape[0]
+            to_240 = spl.AverageUpsampling([240, 240, 240], [upscaling_factor, upscaling_factor, upscaling_factor])
+            recon = xp.asarray(to_240(recon))
+            downsampler = spl.AverageDownsampling(recon.shape, [2, 2, 2])
+            recon = downsampler(recon)
+            if xp.__name__ == "cupy":
+                recon = recon.get()
+
 
         mask = (seg == 1).get()
         masked_ground_truth = ground_truth[mask]
@@ -322,8 +332,12 @@ class AnatomicReconstructor():
 
         ideal_value = masked_ground_truth.mean()
         average_value = masked_recon.mean()
+        perc_accuracy = np.abs(ideal_value - average_value)/ideal_value * 100
 
-        return (np.mean(squared_diff), (ideal_value - average_value)/ideal_value * 100)
+        if perc_accuracy > 100:
+            print("ideal_value", ideal_value, "average_value", average_value, self._img_data)
+
+        return (np.mean(squared_diff), perc_accuracy)
 
 
 def normalize_matrix(matrix):
